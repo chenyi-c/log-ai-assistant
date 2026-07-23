@@ -4,6 +4,55 @@
 
 项目目标是构建从日志采集、结构化处理、ClickHouse 存储、行为基线建模、异常检测、AI 研判反馈到前端工作台的完整安全分析系统。
 
+它将企业安全日志转化为带有规则、行为基线和关联证据的异常事件，供分析人员在统一工作台中研判与追踪。
+
+## 一图看懂
+
+```mermaid
+flowchart LR
+    Filebeat --> Kafka --> Flink --> ClickHouse --> FastAPI --> React
+```
+
+主链路由 Filebeat 采集日志，经 Kafka 和 Flink 规范化后写入 ClickHouse；FastAPI 对外提供业务 API，React 工作台负责展示。ClickHouse 是当前唯一的主存储和分析引擎。
+
+## 5 分钟体验
+
+1. 准备环境并启动完整主链路：
+
+   ```bash
+   cp .env.example .env
+   docker compose up --build
+   ```
+
+2. 打开 [前端工作台](http://localhost:5173)，查看日志、异常事件、用户画像、AI 研判和安全态势相关页面。
+3. 打开 [系统状态接口](http://localhost:8000/api/v1/health)，确认 Kafka、Flink、ClickHouse 等服务状态。默认的 `log-generator` 会向 `logs/` 写入小流量多源样例日志，供主链路处理。
+
+## 验证方式
+
+快速执行项目测试：
+
+```bash
+docker compose run --rm tester
+```
+
+该测试只覆盖快速、局部验证，不能替代完整 Docker 验收。完整验收命令见 [`docs/11_operations_and_acceptance_spec.md`](docs/11_operations_and_acceptance_spec.md)，以下序列中的端到端检查、运营任务和场景评测都需要执行：
+
+其中必需的 `SKIP_COMPOSE_UP=1 scripts/p0_e2e_check.sh` 使用 POSIX 环境变量赋值和 Bash 脚本；Windows 用户请在 WSL 或 Git Bash 中执行，不能直接在 PowerShell 中运行。
+
+```bash
+docker compose run --rm tester
+docker compose up -d --build
+SKIP_COMPOSE_UP=1 scripts/p0_e2e_check.sh
+docker compose run --rm operations-runner run-once --task data_quality_reconcile
+docker compose run --rm operations-runner run-once --task baseline_rebuild
+docker compose run --rm operations-runner run-once --task daily_report_generate
+docker compose run --rm operations-runner run-once --task scenario_evaluate
+```
+
+## 项目范围与 AI 边界
+
+本项目聚焦安全日志采集、结构化处理、行为建模、异常检测、证据化研判和运营验收，不是自主执行安全处置的系统。AI 只对已筛选的高可疑 `AnomalyEvent` 证据包提供研判和建议：它不分析全量原始日志、不单独决定异常是否成立，也不会自主执行封禁、阻断等处置动作。任何可能影响规则或有效 baseline 的反馈，都必须经人工审核并保留审计记录。
+
 ## My Contribution / 共创说明
 
 本项目为团队共创项目。我在项目中主要负责 **异常检测链路（A 模块）**，核心工作集中在：
