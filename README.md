@@ -37,6 +37,8 @@ docker compose run --rm tester
 
 完整的 Docker 验收命令见 [`docs/11_operations_and_acceptance_spec.md`](docs/11_operations_and_acceptance_spec.md)，包含端到端检查、运营任务和场景评测：
 
+其中 `SKIP_COMPOSE_UP=1 scripts/p0_e2e_check.sh` 是可选的端到端检查，使用 POSIX 环境变量赋值和 Bash 脚本；Windows 用户请在 WSL 或 Git Bash 中执行，不能直接在 PowerShell 中运行。
+
 ```bash
 docker compose run --rm tester
 docker compose up -d --build
