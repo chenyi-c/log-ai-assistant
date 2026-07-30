@@ -1,0 +1,25 @@
+name: Anomaly Detection CI
+
+on:
+  push:
+    branches: ["codex/**"]
+  pull_request:
+    paths:
+      - "src/detection/**"
+      - "src/api/**"
+      - "tests/test_anomaly_demo.py"
+      - "tests/test_reproducible_anomaly_scenarios.py"
+      - "tests/fixtures/reproducible_anomaly_scenarios_v1.json"
+      - "docker/tester.Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  anomaly-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker compose build tester
+      - name: Verify reproducible detection demo
+        run: docker compose run --rm tester pytest -q tests/test_anomaly_demo.py tests/test_reproducible_anomaly_scenarios.py

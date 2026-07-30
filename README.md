@@ -41,6 +41,15 @@ curl "http://localhost:8000/api/v1/anomalies?limit=20"
 
 阶段 2 的场景验收、稳定 ID、增量读取、warmup 与去重验证见 `docs/13_detection_acceptance_report.md`。其中明确区分已验证的 A 模块行为与尚未进行的集群负载验证。
 
+### 3 分钟面试演示
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_anomaly_demo.py
+```
+
+该命令不读取线上日志、不调用外部 API，只输出固定脱敏场景的 JSON 验收结果：场景名、输入数量、规则原因码、风险等级、稳定 `anomaly_id`、去重结果，以及 FastAPI 查询模型返回的证据。重点可查看登录失败突增、凭证填充、高频 API、正常对照和重复异常事件去重。它只展示我负责的异常检测 A 模块，不代表团队全链路由我独立实现。
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React
