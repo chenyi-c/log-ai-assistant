@@ -50,6 +50,8 @@ docker compose run --rm tester python scripts/run_anomaly_demo.py
 
 该命令不读取线上日志、不调用外部 API，只输出固定脱敏场景的 JSON 验收结果：场景名、输入数量、规则原因码、风险等级、稳定 `anomaly_id`、去重结果，以及 FastAPI 查询模型返回的证据。重点可查看登录失败突增、凭证填充、高频 API、正常对照和重复异常事件去重。它只展示我负责的异常检测 A 模块，不代表团队全链路由我独立实现。
 
+面试演示步骤见 [`docs/14_interview_demo.md`](docs/14_interview_demo.md)，最近一次合成场景的终端证据见 [`docs/evidence/anomaly-demo-v1.md`](docs/evidence/anomaly-demo-v1.md)。
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React
