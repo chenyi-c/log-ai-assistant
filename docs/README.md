@@ -20,6 +20,8 @@
 | `09_data_generation_and_scenarios.md` | 定义数据规模、日志类型、场景注入和数据质量要求。             |
 | `10_final_quality_criteria.md`        | 定义项目达到目标形态时应满足的最终质量标准。                 |
 | `11_operations_and_acceptance_spec.md` | 定义周期任务、质量门禁、场景评测和高危通知的运营闭环。       |
+| `12_reproducible_anomaly_scenarios.md` | 定义脱敏、可复现的异常检测场景与运行方式。                 |
+| `13_detection_acceptance_report.md` | 记录异常检测 A 模块的场景、稳定性与去重验收结果。          |
 
 ## ADR
 

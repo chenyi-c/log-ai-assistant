@@ -39,6 +39,8 @@ curl http://localhost:8000/api/v1/health
 curl "http://localhost:8000/api/v1/anomalies?limit=20"
 ```
 
+阶段 2 的场景验收、稳定 ID、增量读取、warmup 与去重验证见 `docs/13_detection_acceptance_report.md`。其中明确区分已验证的 A 模块行为与尚未进行的集群负载验证。
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React

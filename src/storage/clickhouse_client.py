@@ -620,6 +620,21 @@ class ClickHouseStorage:
         )
         return _normalize_anomaly_row(items[0]) if items else None
 
+    def existing_anomaly_ids(self, event_ids: Sequence[str]) -> set[str]:
+        """Return persisted anomaly IDs so detector restarts remain idempotent."""
+
+        if not event_ids:
+            return set()
+        rows = self._select_dicts(
+            """
+            SELECT DISTINCT event_id
+            FROM anomaly_events
+            WHERE event_id IN {event_ids:Array(String)}
+            """,
+            {"event_ids": list(event_ids)},
+        )
+        return {str(row["event_id"]) for row in rows}
+
     def insert_anomalies(self, anomalies: Sequence[AnomalyEvent | dict[str, Any]]) -> None:
         rows = [
             _row_from_payload(

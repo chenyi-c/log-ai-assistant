@@ -115,6 +115,18 @@ def test_get_log_returns_none_when_event_is_missing() -> None:
     assert storage.get_log("missing") is None
 
 
+def test_existing_anomaly_ids_queries_only_requested_ids() -> None:
+    fake = FakeClickHouseClient([QueryResult([("anom-1",), ("anom-3",)], ["event_id"])])
+    storage = ClickHouseStorage(client=fake)
+
+    existing = storage.existing_anomaly_ids(["anom-1", "anom-2", "anom-3"])
+
+    assert existing == {"anom-1", "anom-3"}
+    assert "FROM anomaly_events" in fake.queries[0]["sql"]
+    assert "event_id IN {event_ids:Array(String)}" in fake.queries[0]["sql"]
+    assert fake.queries[0]["parameters"] == {"event_ids": ["anom-1", "anom-2", "anom-3"]}
+
+
 def test_aggregate_logs_uses_allowed_groups_and_metrics() -> None:
     fake = FakeClickHouseClient(
         [
