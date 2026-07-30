@@ -1,0 +1,119 @@
+{
+  "version": "v1",
+  "sanitization": "All identities, IP addresses, resources, timestamps, and messages are synthetic. TEST-NET addresses are used for source IPs.",
+  "scenarios": [
+    {
+      "id": "failed-login-user-spike",
+      "category": "failed_login_spike",
+      "description": "One synthetic account fails five logins within five minutes.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "user_id": "demo.account", "src_ip": "203.0.113.10", "action": "login", "resource": "/vpn/login", "result": "fail", "message": "synthetic login failure", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "failed-user", "start_time": "2026-07-01T10:00:00Z", "count": 5, "interval_seconds": 20}]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "high", "reason_codes": ["failed_login_spike"], "evidence": {"user_id": "demo.account", "failed_count_5m": 5}, "related_event_ids": ["failed-user-005"]}
+    },
+    {
+      "id": "failed-login-ip-spike",
+      "category": "failed_login_spike",
+      "description": "One synthetic source fails eight logins within five minutes.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "src_ip": "198.51.100.20", "action": "login", "resource": "/vpn/login", "result": "fail", "message": "synthetic login failure", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "failed-ip", "start_time": "2026-07-01T10:10:00Z", "count": 8, "interval_seconds": 15, "overrides": {"user_id": "shared.demo.account"}}]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "high", "reason_codes": ["failed_login_spike"], "evidence": {"src_ip": "198.51.100.20", "failed_count_5m": 8}, "related_event_ids": ["failed-ip-008"]}
+    },
+    {
+      "id": "credential-stuffing",
+      "category": "credential_stuffing",
+      "description": "A synthetic source tries four different accounts in one five-minute window.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "src_ip": "203.0.113.30", "action": "login", "resource": "/vpn/login", "result": "fail", "message": "synthetic credential attempt", "raw_log": "sanitized"},
+        "sequences": [
+          {"event_id_prefix": "credential-a", "start_time": "2026-07-01T10:20:00Z", "count": 1, "overrides": {"user_id": "demo.user.a"}},
+          {"event_id_prefix": "credential-b", "start_time": "2026-07-01T10:20:10Z", "count": 1, "overrides": {"user_id": "demo.user.b"}},
+          {"event_id_prefix": "credential-c", "start_time": "2026-07-01T10:20:20Z", "count": 1, "overrides": {"user_id": "demo.user.c"}},
+          {"event_id_prefix": "credential-d", "start_time": "2026-07-01T10:20:30Z", "count": 1, "overrides": {"user_id": "demo.user.d"}}
+        ]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "high", "reason_codes": ["credential_stuffing_pattern"], "evidence": {"src_ip": "203.0.113.30", "count": 4}, "related_event_ids": ["credential-d-001"]}
+    },
+    {
+      "id": "high-api-rate",
+      "category": "high_api_rate",
+      "description": "A synthetic account makes eighty API calls in one minute.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "api", "log_type": "api_access", "user_id": "api.demo.account", "src_ip": "198.51.100.40", "action": "api_call", "resource": "/api/catalog/search", "result": "success", "message": "synthetic API call", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "api-burst", "start_time": "2026-07-01T10:30:00Z", "count": 80, "interval_seconds": 0.5}]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "medium", "reason_codes": ["high_api_rate"], "evidence": {"user_id": "api.demo.account", "api_calls_1m": 80}, "related_event_ids": ["api-burst-080"]}
+    },
+    {
+      "id": "sensitive-resource-burst",
+      "category": "sensitive_resource_access",
+      "description": "A synthetic account accesses a sensitive export endpoint five times.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "api", "log_type": "resource_access", "user_id": "finance.demo.account", "src_ip": "203.0.113.50", "action": "access", "resource": "/finance/export/summary", "result": "success", "message": "synthetic resource access", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "sensitive-burst", "start_time": "2026-07-01T10:40:00Z", "count": 5, "interval_seconds": 30}]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "medium", "reason_codes": ["sensitive_resource_access"], "evidence": {"user_id": "finance.demo.account", "sensitive_count_5m": 5, "resource": "/finance/export/summary"}, "related_event_ids": ["sensitive-burst-005"]}
+    },
+    {
+      "id": "ordinary-user-admin-resource",
+      "category": "sensitive_resource_access",
+      "description": "A synthetic ordinary account opens an admin endpoint.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "oa", "log_type": "resource_access", "user_id": "ordinary.demo.account", "src_ip": "198.51.100.60", "action": "access", "resource": "/admin/users", "result": "success", "message": "synthetic admin resource access", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "admin-resource", "start_time": "2026-07-01T10:50:00Z", "count": 1}]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "high", "reason_codes": ["admin_resource_access"], "evidence": {"user_id": "ordinary.demo.account", "resource": "/admin/users"}, "related_event_ids": ["admin-resource-001"]}
+    },
+    {
+      "id": "new-source-sensitive-chain",
+      "category": "new_source_then_sensitive_access",
+      "description": "A new synthetic source logs in successfully and accesses a sensitive configuration endpoint.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "user_id": "chain.demo.account", "src_ip": "203.0.113.70", "result": "success", "message": "synthetic chain event", "raw_log": "sanitized"},
+        "sequences": [
+          {"event_id_prefix": "new-source-login", "start_time": "2026-07-01T11:00:00Z", "count": 1, "overrides": {"action": "login", "resource": "/vpn/login"}},
+          {"event_id_prefix": "new-source-sensitive", "start_time": "2026-07-01T11:01:00Z", "count": 1, "overrides": {"action": "access", "resource": "/config/finance"}}
+        ]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "critical", "reason_codes": ["new_source_then_sensitive_access", "sensitive_resource_access"], "evidence": {"user_id": "chain.demo.account", "src_ip": "203.0.113.70", "resource": "/config/finance"}, "related_event_ids": ["new-source-login-001", "new-source-sensitive-001"]}
+    },
+    {
+      "id": "new-source-sensitive-export-chain",
+      "category": "new_source_then_sensitive_access",
+      "description": "A new synthetic source logs in and accesses a sensitive export endpoint.",
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "user_id": "export.chain.account", "src_ip": "198.51.100.80", "result": "success", "message": "synthetic chain event", "raw_log": "sanitized"},
+        "sequences": [
+          {"event_id_prefix": "export-chain-login", "start_time": "2026-07-01T11:10:00Z", "count": 1, "overrides": {"action": "login", "resource": "/vpn/login"}},
+          {"event_id_prefix": "export-chain-sensitive", "start_time": "2026-07-01T11:11:00Z", "count": 1, "overrides": {"action": "access", "resource": "/api/export/payroll"}}
+        ]
+      },
+      "expected": {"target_anomaly_count": 1, "risk_level": "critical", "reason_codes": ["new_source_then_sensitive_access", "sensitive_resource_access"], "evidence": {"user_id": "export.chain.account", "src_ip": "198.51.100.80", "resource": "/api/export/payroll"}, "related_event_ids": ["export-chain-login-001", "export-chain-sensitive-001"]}
+    },
+    {
+      "id": "normal-known-source-login",
+      "category": "normal_behavior",
+      "description": "A known synthetic source logs in during working hours with an available baseline.",
+      "context": {"seen_source": true, "baseline_available": true, "baseline_deviations": []},
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "vpn", "log_type": "login", "user_id": "normal.demo.account", "src_ip": "203.0.113.90", "action": "login", "resource": "/vpn/login", "result": "success", "message": "synthetic normal login", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "normal-login", "start_time": "2026-07-01T11:20:00Z", "count": 1}]
+      },
+      "expected": {"target_anomaly_count": 0, "risk_level": "low", "reason_codes": [], "evidence": {}, "related_event_ids": []}
+    },
+    {
+      "id": "normal-low-rate-api",
+      "category": "normal_behavior",
+      "description": "A synthetic account makes three ordinary API calls, below the configured threshold.",
+      "context": {"seen_source": true, "baseline_available": true, "baseline_deviations": []},
+      "input": {
+        "defaults": {"tenant_id": "demo", "source_type": "api", "log_type": "api_access", "user_id": "normal.api.account", "src_ip": "198.51.100.100", "action": "api_call", "resource": "/api/profile", "result": "success", "message": "synthetic normal API call", "raw_log": "sanitized"},
+        "sequences": [{"event_id_prefix": "normal-api", "start_time": "2026-07-01T11:30:00Z", "count": 3, "interval_seconds": 10}]
+      },
+      "expected": {"target_anomaly_count": 0, "risk_level": "low", "reason_codes": [], "evidence": {}, "related_event_ids": []}
+    }
+  ]
+}

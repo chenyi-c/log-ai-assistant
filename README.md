@@ -16,6 +16,29 @@
 
 这段工作让我完整参与了一个从日志流处理到安全异常事件建模的后端工程链路，也锻炼了我把规则检测、行为基线、风险评分和可解释证据包结合到实际系统中的能力。
 
+## 可复现异常检测演示
+
+我负责的 A 模块可以独立用一组固定、脱敏的场景复跑：
+
+```text
+安全日志样例 -> RuleEngine -> AnomalyEvent -> FastAPI GET /api/v1/anomalies
+```
+
+场景定义位于 `tests/fixtures/reproducible_anomaly_scenarios_v1.json`，仅使用虚拟账号、资源名与 TEST-NET 保留网段。场景覆盖：登录失败突增、凭证填充、高频 API 调用、敏感资源访问、新来源登录后敏感访问，以及两类正常行为对照。每项都声明输入序列、预期 `risk_level`、`reason_codes`、`evidence` 和 `related_event_ids`；测试会用真实 `RuleEngine` 生成 `AnomalyEvent`，再经 FastAPI 查询路由校验返回契约。
+
+运行最小演示：
+
+```bash
+docker compose run --rm tester pytest -q tests/test_reproducible_anomaly_scenarios.py
+```
+
+该测试是固定规则样例的回归验证，不代表模型准确率、真实企业数据效果或生产性能。完整系统启动后可通过以下接口查看已入库的异常事件：
+
+```bash
+curl http://localhost:8000/api/v1/health
+curl "http://localhost:8000/api/v1/anomalies?limit=20"
+```
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React
