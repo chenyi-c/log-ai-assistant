@@ -245,13 +245,14 @@ def build_baselines_from_daily_features(
     *,
     lookback_days: int = 90,
     tenant_id: str = "default",
+    as_of_date: date | None = None,
 ) -> list[UserBaseline]:
     """Build per-user baselines from all available daily feature data.
 
     Uses up to ``lookback_days`` of history (default 90).  All dates with
     daily features are included so baselines reflect the full behaviour history.
     """
-    end_date = datetime.now(timezone.utc).date()
+    end_date = as_of_date or datetime.now(timezone.utc).date()
     # Calendar-month seasonality needs cross-year history. Other scopes still
     # apply their own 90d/30d windows after this wider read.
     history_days = max(lookback_days, 730)

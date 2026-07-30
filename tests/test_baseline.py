@@ -158,7 +158,10 @@ def test_daily_feature_builder_emits_periodic_baselines() -> None:
             }
         )
 
-    baselines = build_baselines_from_daily_features(FakeDailyFeatureStorage(records))
+    baselines = build_baselines_from_daily_features(
+        FakeDailyFeatureStorage(records),
+        as_of_date=date(2026, 6, 8),
+    )
     periods = {(item.period_type, item.period_key) for item in baselines}
 
     assert ("global", "all") in periods
