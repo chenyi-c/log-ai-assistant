@@ -61,3 +61,37 @@ def test_anomaly_review_requires_a_nonempty_note(client: TestClient) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_anomaly_review_masks_direct_identifiers_in_returned_evidence(client: TestClient) -> None:
+    class _IdentifierStorage:
+        def get_anomaly(self, event_id: str) -> dict[str, object]:
+            return {
+                "event_id": event_id,
+                "reason_codes": ["failed_login_spike"],
+                "evidence": {
+                    "src_ip": "203.0.113.10",
+                    "user_id": "demo.account",
+                    "resource": "/vpn/login",
+                    "failed_count_5m": 5,
+                },
+            }
+
+    from src.api.app import get_storage
+
+    app.dependency_overrides[get_storage] = _IdentifierStorage
+    try:
+        response = client.put(
+            "/api/v1/anomalies/anom-demo-identifiers/review",
+            json={"status": "pending", "reviewer_note": "Synthetic review."},
+        )
+    finally:
+        app.dependency_overrides[get_storage] = lambda: _ReviewStorage()
+
+    assert response.status_code == 200
+    assert response.json()["evidence"] == {
+        "src_ip": "203.0.***.***",
+        "user_id": "d***t",
+        "resource": "/vpn/***",
+        "failed_count_5m": 5,
+    }

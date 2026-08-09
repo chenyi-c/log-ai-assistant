@@ -46,14 +46,41 @@ class AnomalyReviewStore:
 
 
 def _safe_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
-    """Drop raw event payload fields while preserving structured detection evidence."""
+    """Drop raw payloads and mask direct identifiers in returned review evidence."""
     blocked = {"raw_log", "raw", "message", "payload", "content", "request_body"}
 
-    def clean(value: Any) -> Any:
+    def clean(key: str, value: Any) -> Any:
+        lowered = key.lower()
+        if lowered in blocked:
+            return None
         if isinstance(value, dict):
-            return {str(key): clean(item) for key, item in value.items() if str(key).lower() not in blocked}
+            return {
+                str(child_key): item
+                for child_key, child_value in value.items()
+                if (item := clean(str(child_key), child_value)) is not None
+            }
         if isinstance(value, list):
-            return [clean(item) for item in value]
+            return [clean(key, item) for item in value]
+        if lowered in {"src_ip", "ip", "source_ip"}:
+            return _mask_ip(str(value))
+        if lowered in {"user_id", "user", "account", "principal"}:
+            return _mask_text(str(value))
+        if lowered in {"resource", "resource_id", "object_id"}:
+            return _mask_resource(str(value))
         return value
 
-    return clean(evidence)
+    return clean("evidence", evidence)
+
+
+def _mask_text(value: str) -> str:
+    return value if len(value) <= 2 else f"{value[0]}***{value[-1]}"
+
+
+def _mask_ip(value: str) -> str:
+    parts = value.split(".")
+    return f"{parts[0]}.{parts[1]}.***.***" if len(parts) == 4 else "***"
+
+
+def _mask_resource(value: str) -> str:
+    parts = [part for part in value.split("/") if part]
+    return f"/{parts[0]}/***" if parts else "***"
