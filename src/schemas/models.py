@@ -11,6 +11,7 @@ SourceType = Literal["vpn", "oa", "api", "system", "file", "database", "security
 LogResult = Literal["success", "fail", "denied", "error"]
 AIStatus = Literal["not_required", "pending", "analyzed", "failed"]
 AnomalyStatus = Literal["new", "investigating", "closed", "false_positive", "pending_review", "rejected"]
+AnomalyReviewStatus = Literal["pending", "confirmed", "false_positive"]
 FallbackLevel = Literal["none", "peer_group", "department", "global"]
 FeedbackType = Literal[
     "rule_weight",
@@ -137,6 +138,26 @@ class AnomalyEvent(BaseModel):
     model_version: str | None = None
     scoring_version: str | None = None
     created_at: datetime
+
+
+class AnomalyReviewRequest(BaseModel):
+    """Demo-grade analyst label. It intentionally has no account or identity contract."""
+
+    status: AnomalyReviewStatus
+    reviewer_note: str = Field(min_length=1, max_length=500)
+    reviewer: str = Field(default="demo-analyst", min_length=1, max_length=80)
+
+
+class AnomalyReviewResponse(BaseModel):
+    """The latest demo review attached to an anomaly ID."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    anomaly_id: str = Field(alias="anomalyId")
+    status: AnomalyReviewStatus
+    reviewer_note: str = Field(alias="reviewerNote")
+    reviewer: str
+    reviewed_at: datetime = Field(alias="reviewedAt")
 
 
 class AIJudgement(BaseModel):

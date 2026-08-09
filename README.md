@@ -52,6 +52,34 @@ docker compose run --rm tester python scripts/run_anomaly_demo.py
 
 面试演示步骤见 [`docs/14_interview_demo.md`](docs/14_interview_demo.md)，最近一次合成场景的终端证据见 [`docs/evidence/anomaly-demo-v1.md`](docs/evidence/anomaly-demo-v1.md)。
 
+### 60 秒面试讲解
+
+1. 固定的脱敏安全日志先进入我负责的 `RuleEngine`，再由 `AnomalyEventBuilder` 生成异常事件；我会展示登录失败突增或凭证填充的输入与命中原因码。
+2. 事件带有由输入与规则派生的稳定 `anomaly_id`、`evidence` 和 `related_event_ids`；worker 会用这些 ID 对重放事件去重，API 返回同一份可解释证据。
+3. 演示中可用人工复核接口把某个异常标记为 `pending`、`confirmed` 或 `false_positive` 并附备注。该接口是无账号、进程内的演示实现，重启 API 后记录清空；Kafka、Flink、ClickHouse 和前端属于团队全链路，并非我个人独立开发。
+
+### 演示级人工复核
+
+对演示中得到的任一 `anomaly_id`，可记录和查询一条人工复核标签：
+
+```bash
+curl -X PUT "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"confirmed","reviewer_note":"Synthetic demo review.","reviewer":"demo-analyst"}'
+curl "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review"
+```
+
+这是面试演示用的进程内记录，不替代现有 ClickHouse `ai_feedback` 治理表，也没有账号、权限或跨重启持久化能力。
+
+### 规则回归报告
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_rule_regression.py
+```
+
+该命令从同一份 10 条脱敏场景生成 JSON：规则类别、去标识化输入摘要、期望风险/原因码/证据、实际输出、期望命中数和通过状态。它是固定样例的规则回归约束，不是检测准确率或真实攻击检出率。
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React

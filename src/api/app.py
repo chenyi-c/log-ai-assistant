@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.ai_engine import AIAnalyzer
 from src.config import settings
+from src.detection.review import AnomalyReviewStore
 from src.health import HealthResponse, get_health_status
 from src.operations import NotificationService, OperationsRunner
 from src.operations.runner import TASK_DEPENDENCIES
@@ -30,6 +31,8 @@ from src.schemas import (
     AnomalyDetailResponse,
     AnomalyEvent,
     AnomalyEventListResponse,
+    AnomalyReviewRequest,
+    AnomalyReviewResponse,
     BaselineRebuildResponse,
     BaselineOverride,
     BaselineOverrideCreateRequest,
@@ -84,6 +87,7 @@ HTTP_ERROR_CODES = {
 }
 _daily_report_locks_guard = Lock()
 _daily_report_locks: dict[tuple[str, str], Lock] = {}
+_anomaly_review_store = AnomalyReviewStore()
 
 
 app = FastAPI(
@@ -114,6 +118,11 @@ def health_check() -> HealthResponse:
 
 def get_storage() -> ClickHouseStorage:
     return ClickHouseStorage()
+
+
+def get_anomaly_review_store() -> AnomalyReviewStore:
+    """Return the process-local store used only by the interview demo review loop."""
+    return _anomaly_review_store
 
 
 def get_analyzer() -> AIAnalyzer:
@@ -367,6 +376,49 @@ def get_alert_detail(
         ai_judgement=ai_report,
         evidence_chain=_build_evidence_chain(alert, baseline, related_logs),
     )
+
+
+@app.put(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Record a demo analyst review label",
+    description=(
+        "Demo-only process-local review record for an anomaly ID. It has no account system or durable storage; "
+        "records reset when the API process restarts."
+    ),
+)
+def save_anomaly_review(
+    event_id: str,
+    request: AnomalyReviewRequest,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+) -> AnomalyReviewResponse:
+    return review_store.save(event_id, request)
+
+
+@app.get(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Read the latest demo analyst review label",
+)
+def get_anomaly_review(
+    event_id: str,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+) -> AnomalyReviewResponse:
+    review = review_store.get(event_id)
+    if review is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "anomaly_review_not_found",
+                "message": "No demo analyst review exists for this anomaly",
+                "details": {"event_id": event_id},
+            },
+        )
+    return review
 
 
 @app.post(
