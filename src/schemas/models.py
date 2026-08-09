@@ -158,6 +158,8 @@ class AnomalyReviewResponse(BaseModel):
     reviewer_note: str = Field(alias="reviewerNote")
     reviewer: str
     reviewed_at: datetime = Field(alias="reviewedAt")
+    reason_codes: list[str] = Field(default_factory=list, alias="reasonCodes")
+    evidence: dict[str, Any] = Field(default_factory=dict)
 
 
 class AIJudgement(BaseModel):

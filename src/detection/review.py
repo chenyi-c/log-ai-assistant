@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Callable
+from typing import Any, Callable
 
 from src.schemas import AnomalyReviewRequest, AnomalyReviewResponse
 
@@ -17,14 +17,23 @@ class AnomalyReviewStore:
         self._items: dict[str, AnomalyReviewResponse] = {}
         self._lock = Lock()
 
-    def save(self, anomaly_id: str, request: AnomalyReviewRequest) -> AnomalyReviewResponse:
-        """Upsert one review without persisting a reviewer identity system."""
+    def save(
+        self,
+        anomaly_id: str,
+        request: AnomalyReviewRequest,
+        *,
+        reason_codes: list[str],
+        evidence: dict[str, Any],
+    ) -> AnomalyReviewResponse:
+        """Upsert one review without persisting a reviewer identity system or raw log text."""
         review = AnomalyReviewResponse(
             anomaly_id=anomaly_id,
             status=request.status,
             reviewer_note=request.reviewer_note,
             reviewer=request.reviewer,
             reviewed_at=self._clock(),
+            reason_codes=reason_codes,
+            evidence=_safe_evidence(evidence),
         )
         with self._lock:
             self._items[anomaly_id] = review
@@ -34,3 +43,17 @@ class AnomalyReviewStore:
         """Return the latest review label for one anomaly in this process."""
         with self._lock:
             return self._items.get(anomaly_id)
+
+
+def _safe_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Drop raw event payload fields while preserving structured detection evidence."""
+    blocked = {"raw_log", "raw", "message", "payload", "content", "request_body"}
+
+    def clean(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(key): clean(item) for key, item in value.items() if str(key).lower() not in blocked}
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        return value
+
+    return clean(evidence)

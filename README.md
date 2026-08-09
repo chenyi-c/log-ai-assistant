@@ -71,6 +71,8 @@ curl "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review"
 
 这是面试演示用的进程内记录，不替代现有 ClickHouse `ai_feedback` 治理表，也没有账号、权限或跨重启持久化能力。
 
+复核记录会从已有异常事件复制 `anomaly_id`、`reason_codes` 和结构化 `evidence` 快照；`raw_log`、`message` 等原始文本字段会在写入演示复核记录前移除。
+
 ### 规则回归报告
 
 ```bash
@@ -79,6 +81,15 @@ docker compose run --rm tester python scripts/run_rule_regression.py
 ```
 
 该命令从同一份 10 条脱敏场景生成 JSON：规则类别、去标识化输入摘要、期望风险/原因码/证据、实际输出、期望命中数和通过状态。它是固定样例的规则回归约束，不是检测准确率或真实攻击检出率。
+
+### 统一回放评测
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_detection_evaluation.py
+```
+
+该入口把规则回归、稳定 `anomaly_id`、API 证据和逐场景重放去重组合为一份 JSON 报告。每个场景都含不包含原始日志正文的 `trace_id`、输入数、预期/实际规则、风险、异常 ID、原因码、证据、去重结果和通过状态。最近一次终端证据见 [`docs/evidence/detection-evaluation-v1.md`](docs/evidence/detection-evaluation-v1.md)。
 
 ## 当前主链路
 

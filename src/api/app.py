@@ -393,8 +393,34 @@ def save_anomaly_review(
     event_id: str,
     request: AnomalyReviewRequest,
     review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+    storage: ClickHouseStorage = Depends(get_storage),
 ) -> AnomalyReviewResponse:
-    return review_store.save(event_id, request)
+    try:
+        anomaly = storage.get_anomaly(event_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to load anomaly evidence for demo review",
+                "details": {"table": "anomaly_events", "event_id": event_id},
+            },
+        ) from exc
+    if anomaly is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "anomaly_not_found",
+                "message": "Anomaly event not found",
+                "details": {"table": "anomaly_events", "event_id": event_id},
+            },
+        )
+    return review_store.save(
+        event_id,
+        request,
+        reason_codes=[str(code) for code in anomaly.get("reason_codes") or []],
+        evidence=dict(anomaly.get("evidence") or {}),
+    )
 
 
 @app.get(
