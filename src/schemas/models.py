@@ -162,6 +162,23 @@ class AnomalyReviewResponse(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 
+class InvestigationResponse(BaseModel):
+    """Sanitized, demonstration-only analyst investigation package."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    anomaly_id: str = Field(alias="anomalyId")
+    risk_level: RiskLevel = Field(alias="riskLevel")
+    reason_codes: list[str] = Field(default_factory=list, alias="reasonCodes")
+    sanitized_evidence: dict[str, Any] = Field(default_factory=dict, alias="sanitizedEvidence")
+    attack_techniques: list[dict[str, str]] = Field(default_factory=list, alias="attackTechniques")
+    why_matched: dict[str, Any] = Field(default_factory=dict, alias="whyMatched")
+    manual_check_steps: list[str] = Field(default_factory=list, alias="manualCheckSteps")
+    review_status: AnomalyReviewStatus = Field(alias="reviewStatus")
+    reviewer_note: str | None = Field(default=None, alias="reviewerNote")
+    reviewed_at: datetime | None = Field(default=None, alias="reviewedAt")
+
+
 class AIJudgement(BaseModel):
     model_config = ConfigDict(extra="allow")
 

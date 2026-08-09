@@ -73,6 +73,21 @@ curl "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review"
 
 复核记录会从已有异常事件复制 `anomaly_id`、`reason_codes` 和结构化 `evidence` 快照；`raw_log`、`message` 等原始文本字段会在写入演示复核记录前移除。
 
+### 3 分钟安全研判演示
+
+`Investigation Pack` 把我负责的异常事件、证据、去重和演示级人工复核组合为一条可演示闭环，不读取真实日志或外部 API：
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_investigation_pack.py --format markdown
+```
+
+1. 输出先显示固定脱敏日志如何命中异常，及稳定 `anomaly_id` 和重复重放去重。
+2. 对 `failed-login-user-spike` 或 `credential-stuffing`，调用 `GET /api/v1/anomalies/<anomaly_id>/investigation` 查看脱敏证据、规则阈值、关联事件和人工维护的窄范围 ATT&CK 引用。
+3. 用 `PUT /api/v1/anomalies/<anomaly_id>/review` 标记 `confirmed` 或 `false_positive`，再查询研判接口查看复核状态。
+
+研判包是无账号、进程内的演示实现，复核记录不跨进程持久化；脱敏是演示输出保护，不能替代企业级权限、密钥管理或完整 SIEM/SOC 能力。最近一次真实终端输出见 [`docs/evidence/investigation-pack-v1.md`](docs/evidence/investigation-pack-v1.md)。开源参考、许可证与未复制声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
 ### 规则回归报告
 
 ```bash

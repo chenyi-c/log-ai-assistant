@@ -11,6 +11,8 @@ on:
       - "tests/test_anomaly_demo.py"
       - "tests/test_detection_evaluation.py"
       - "tests/test_anomaly_review_api.py"
+      - "tests/test_anomaly_investigation_api.py"
+      - "tests/test_investigation_pack.py"
       - "tests/test_reproducible_anomaly_scenarios.py"
       - "tests/test_rule_regression.py"
       - "tests/fixtures/reproducible_anomaly_scenarios_v1.json"
@@ -27,5 +29,6 @@ jobs:
         run: docker compose build tester
       - name: Verify reproducible detection demo
         run: |
-          docker compose run --rm tester pytest -q tests/test_anomaly_demo.py tests/test_anomaly_review_api.py tests/test_detection_evaluation.py tests/test_reproducible_anomaly_scenarios.py tests/test_rule_regression.py
+          docker compose run --rm tester pytest -q tests/test_anomaly_demo.py tests/test_anomaly_review_api.py tests/test_anomaly_investigation_api.py tests/test_investigation_pack.py tests/test_detection_evaluation.py tests/test_reproducible_anomaly_scenarios.py tests/test_rule_regression.py
           docker compose run --rm tester python scripts/run_detection_evaluation.py > /tmp/detection-evaluation.json
+          docker compose run --rm tester python scripts/run_investigation_pack.py --format json > /tmp/investigation-pack.json

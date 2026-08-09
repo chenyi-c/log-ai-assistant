@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.ai_engine import AIAnalyzer
 from src.config import settings
 from src.detection.review import AnomalyReviewStore
+from src.detection.investigation import build_investigation
 from src.health import HealthResponse, get_health_status
 from src.operations import NotificationService, OperationsRunner
 from src.operations.runner import TASK_DEPENDENCIES
@@ -33,6 +34,7 @@ from src.schemas import (
     AnomalyEventListResponse,
     AnomalyReviewRequest,
     AnomalyReviewResponse,
+    InvestigationResponse,
     BaselineRebuildResponse,
     BaselineOverride,
     BaselineOverrideCreateRequest,
@@ -389,6 +391,13 @@ def get_alert_detail(
         "records reset when the API process restarts."
     ),
 )
+@app.post(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Record a demo analyst review label",
+)
 def save_anomaly_review(
     event_id: str,
     request: AnomalyReviewRequest,
@@ -445,6 +454,33 @@ def get_anomaly_review(
             },
         )
     return review
+
+
+@app.get(
+    "/api/v1/anomalies/{event_id}/investigation",
+    response_model=InvestigationResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Build a sanitized, demo-grade anomaly investigation package",
+)
+def get_anomaly_investigation(
+    event_id: str,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+    storage: ClickHouseStorage = Depends(get_storage),
+) -> InvestigationResponse:
+    try:
+        anomaly = storage.get_anomaly(event_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "clickhouse_query_failed", "message": "Failed to load anomaly investigation evidence", "details": {"event_id": event_id}},
+        ) from exc
+    if anomaly is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "anomaly_not_found", "message": "Anomaly event not found", "details": {"event_id": event_id}},
+        )
+    return build_investigation(anomaly, review_store.get(event_id))
 
 
 @app.post(
