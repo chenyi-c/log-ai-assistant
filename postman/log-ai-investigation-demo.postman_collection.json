@@ -1,0 +1,38 @@
+{
+  "info": {
+    "name": "Log AI Assistant - Synthetic Investigation Demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8000"},
+    {"key": "anomalyId", "value": "replace-with-live-anomaly-id"}
+  ],
+  "item": [
+    {
+      "name": "Replay fixed desensitized logs",
+      "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/demo/investigation-replay"}
+    },
+    {
+      "name": "Read Investigation Pack",
+      "request": {"method": "GET", "url": "{{baseUrl}}/api/v1/anomalies/{{anomalyId}}/investigation"}
+    },
+    {
+      "name": "Mark confirmed",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"status\": \"confirmed\",\n  \"reviewer_note\": \"Synthetic demo review.\"\n}"},
+        "url": "{{baseUrl}}/api/v1/anomalies/{{anomalyId}}/review"
+      }
+    },
+    {
+      "name": "Mark false positive",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"status\": \"false_positive\",\n  \"reviewer_note\": \"Synthetic demo review.\"\n}"},
+        "url": "{{baseUrl}}/api/v1/anomalies/{{anomalyId}}/review"
+      }
+    }
+  ]
+}

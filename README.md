@@ -88,6 +88,17 @@ docker compose run --rm tester python scripts/run_investigation_pack.py --format
 
 研判包是无账号、进程内的演示实现，复核记录不跨进程持久化；脱敏是演示输出保护，不能替代企业级权限、密钥管理或完整 SIEM/SOC 能力。最近一次真实终端输出见 [`docs/evidence/investigation-pack-v1.md`](docs/evidence/investigation-pack-v1.md)。开源参考、许可证与未复制声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
+### 一键面试回放与 API 集合
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_interview_investigation_demo.py --format markdown
+```
+
+该入口在同一进程内依次完成固定脱敏日志的规则检测、稳定 ID/去重检查、`GET /investigation` 查询以及一次 `pending -> confirmed` 的真实 FastAPI 复核回放。输出只保留规则命中、脱敏证据、ATT&CK 引用和复核状态；不读取线上日志或外部密钥。启动完整 API 后，可导入 [`postman/log-ai-investigation-demo.postman_collection.json`](postman/log-ai-investigation-demo.postman_collection.json) 来调用固定回放、研判查询和 `confirmed` / `false_positive` 复核。`anomalyId` 需要替换为已入库异常 ID；固定回放本身不把样例写入生产存储。
+
+最近一次本地 Docker 终端证据见 [`docs/evidence/interview-investigation-demo-v1.md`](docs/evidence/interview-investigation-demo-v1.md)。CI 会生成并上传 JSON/Markdown 证据，可从 [Anomaly Detection CI](https://github.com/chenyi-c/log-ai-assistant/actions/workflows/ci.yml) 的 `anomaly-investigation-evidence` artifact 下载。60 秒讲解：我负责的 Python A 模块把日志转为可解释异常事件；稳定 `anomaly_id` 用于幂等去重，证据和 ATT&CK 映射用于人工核查，最后通过演示级复核接口闭环。Kafka、Flink、ClickHouse 和前端仍是团队全链路，不宣称为我独立开发。
+
 ### 规则回归报告
 
 ```bash

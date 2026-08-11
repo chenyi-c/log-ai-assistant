@@ -380,6 +380,19 @@ def get_alert_detail(
     )
 
 
+@app.get(
+    "/api/v1/demo/investigation-replay",
+    tags=["demo"],
+    summary="Replay fixed synthetic detection cases through the investigation demo",
+    description="No-key, synthetic-only interview replay. It does not read or persist real security logs.",
+)
+def replay_investigation_demo() -> dict[str, Any]:
+    """Expose the same deterministic detector-to-review replay used by the interview script."""
+    from src.detection.interview_demo import run_interview_investigation_demo
+
+    return run_interview_investigation_demo()
+
+
 @app.put(
     "/api/v1/anomalies/{event_id}/review",
     response_model=AnomalyReviewResponse,

@@ -128,6 +128,8 @@ def _sanitize_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, dict):
             return {str(child_key): item for child_key, child_value in value.items() if (item := clean(str(child_key), child_value)) is not None}
         if isinstance(value, list):
+            if lowered.startswith("distinct_users"):
+                return [_mask_text(str(item)) for item in value]
             return [clean(key, item) for item in value]
         if lowered in {"src_ip", "ip", "source_ip"}:
             return _mask_ip(str(value))
