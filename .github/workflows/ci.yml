@@ -1,0 +1,45 @@
+name: Anomaly Detection CI
+
+on:
+  push:
+    branches: ["codex/**"]
+  pull_request:
+    paths:
+      - "src/detection/**"
+      - "src/api/**"
+      - "src/schemas/**"
+      - "tests/test_anomaly_demo.py"
+      - "tests/test_interview_investigation_demo.py"
+      - "tests/test_detection_evaluation.py"
+      - "tests/test_anomaly_review_api.py"
+      - "tests/test_anomaly_investigation_api.py"
+      - "tests/test_investigation_pack.py"
+      - "tests/test_reproducible_anomaly_scenarios.py"
+      - "tests/test_rule_regression.py"
+      - "tests/fixtures/reproducible_anomaly_scenarios_v1.json"
+      - "docker/tester.Dockerfile"
+      - "docker-compose.yml"
+      - "scripts/run_interview_investigation_demo.py"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  anomaly-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker compose build tester
+      - name: Verify reproducible detection demo
+        run: |
+          mkdir -p artifacts
+          docker compose run --rm tester pytest -q tests/test_anomaly_demo.py tests/test_interview_investigation_demo.py tests/test_anomaly_review_api.py tests/test_anomaly_investigation_api.py tests/test_investigation_pack.py tests/test_detection_evaluation.py tests/test_reproducible_anomaly_scenarios.py tests/test_rule_regression.py
+          docker compose run --rm tester python scripts/run_detection_evaluation.py > artifacts/detection-evaluation.json
+          docker compose run --rm tester python scripts/run_investigation_pack.py --format json > artifacts/investigation-pack.json
+          docker compose run --rm tester python scripts/run_interview_investigation_demo.py --format json > artifacts/interview-investigation-demo.json
+          docker compose run --rm tester python scripts/run_interview_investigation_demo.py --format markdown > artifacts/interview-investigation-demo.md
+      - name: Upload synthetic investigation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: anomaly-investigation-evidence
+          path: artifacts/
+          if-no-files-found: error

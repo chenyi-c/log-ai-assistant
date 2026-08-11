@@ -15,6 +15,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.ai_engine import AIAnalyzer
 from src.config import settings
+from src.detection.review import AnomalyReviewStore
+from src.detection.investigation import build_investigation
 from src.health import HealthResponse, get_health_status
 from src.operations import NotificationService, OperationsRunner
 from src.operations.runner import TASK_DEPENDENCIES
@@ -30,6 +32,9 @@ from src.schemas import (
     AnomalyDetailResponse,
     AnomalyEvent,
     AnomalyEventListResponse,
+    AnomalyReviewRequest,
+    AnomalyReviewResponse,
+    InvestigationResponse,
     BaselineRebuildResponse,
     BaselineOverride,
     BaselineOverrideCreateRequest,
@@ -84,6 +89,7 @@ HTTP_ERROR_CODES = {
 }
 _daily_report_locks_guard = Lock()
 _daily_report_locks: dict[tuple[str, str], Lock] = {}
+_anomaly_review_store = AnomalyReviewStore()
 
 
 app = FastAPI(
@@ -114,6 +120,11 @@ def health_check() -> HealthResponse:
 
 def get_storage() -> ClickHouseStorage:
     return ClickHouseStorage()
+
+
+def get_anomaly_review_store() -> AnomalyReviewStore:
+    """Return the process-local store used only by the interview demo review loop."""
+    return _anomaly_review_store
 
 
 def get_analyzer() -> AIAnalyzer:
@@ -367,6 +378,122 @@ def get_alert_detail(
         ai_judgement=ai_report,
         evidence_chain=_build_evidence_chain(alert, baseline, related_logs),
     )
+
+
+@app.get(
+    "/api/v1/demo/investigation-replay",
+    tags=["demo"],
+    summary="Replay fixed synthetic detection cases through the investigation demo",
+    description="No-key, synthetic-only interview replay. It does not read or persist real security logs.",
+)
+def replay_investigation_demo() -> dict[str, Any]:
+    """Expose the same deterministic detector-to-review replay used by the interview script."""
+    from src.detection.interview_demo import run_interview_investigation_demo
+
+    return run_interview_investigation_demo()
+
+
+@app.put(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Record a demo analyst review label",
+    description=(
+        "Demo-only process-local review record for an anomaly ID. It has no account system or durable storage; "
+        "records reset when the API process restarts."
+    ),
+)
+@app.post(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Record a demo analyst review label",
+)
+def save_anomaly_review(
+    event_id: str,
+    request: AnomalyReviewRequest,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+    storage: ClickHouseStorage = Depends(get_storage),
+) -> AnomalyReviewResponse:
+    try:
+        anomaly = storage.get_anomaly(event_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to load anomaly evidence for demo review",
+                "details": {"table": "anomaly_events", "event_id": event_id},
+            },
+        ) from exc
+    if anomaly is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "anomaly_not_found",
+                "message": "Anomaly event not found",
+                "details": {"table": "anomaly_events", "event_id": event_id},
+            },
+        )
+    return review_store.save(
+        event_id,
+        request,
+        reason_codes=[str(code) for code in anomaly.get("reason_codes") or []],
+        evidence=dict(anomaly.get("evidence") or {}),
+    )
+
+
+@app.get(
+    "/api/v1/anomalies/{event_id}/review",
+    response_model=AnomalyReviewResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Read the latest demo analyst review label",
+)
+def get_anomaly_review(
+    event_id: str,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+) -> AnomalyReviewResponse:
+    review = review_store.get(event_id)
+    if review is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "anomaly_review_not_found",
+                "message": "No demo analyst review exists for this anomaly",
+                "details": {"event_id": event_id},
+            },
+        )
+    return review
+
+
+@app.get(
+    "/api/v1/anomalies/{event_id}/investigation",
+    response_model=InvestigationResponse,
+    responses=STANDARD_ERROR_RESPONSES,
+    tags=["anomalies"],
+    summary="Build a sanitized, demo-grade anomaly investigation package",
+)
+def get_anomaly_investigation(
+    event_id: str,
+    review_store: AnomalyReviewStore = Depends(get_anomaly_review_store),
+    storage: ClickHouseStorage = Depends(get_storage),
+) -> InvestigationResponse:
+    try:
+        anomaly = storage.get_anomaly(event_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "clickhouse_query_failed", "message": "Failed to load anomaly investigation evidence", "details": {"event_id": event_id}},
+        ) from exc
+    if anomaly is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "anomaly_not_found", "message": "Anomaly event not found", "details": {"event_id": event_id}},
+        )
+    return build_investigation(anomaly, review_store.get(event_id))
 
 
 @app.post(

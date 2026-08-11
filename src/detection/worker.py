@@ -38,6 +38,9 @@ class DetectionStorage(Protocol):
     def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None:
         ...
 
+    def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]:
+        ...
+
     def get_user_baseline(self, user_id: str, *, tenant_id: str | None = None, baseline_date=None) -> dict[str, Any] | None:
         ...
 
@@ -123,6 +126,9 @@ class AnomalyDetectorWorker:
         except Exception:
             self._engine.feedback_stats = {}
         anomalies = _dedupe_anomalies(self._detect_logs(logs), self._seen_anomaly_ids)
+        if anomalies:
+            existing_ids = self.storage.existing_anomaly_ids([item.event_id for item in anomalies])
+            anomalies = [item for item in anomalies if item.event_id not in existing_ids]
         if anomalies:
             self.storage.insert_anomalies(anomalies)
             try:

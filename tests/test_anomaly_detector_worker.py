@@ -67,6 +67,14 @@ class FakeStorage:
     def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None:
         self.inserted_batches.append(list(anomalies))
 
+    def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]:
+        inserted_ids = {
+            anomaly.event_id
+            for batch in self.inserted_batches
+            for anomaly in batch
+        }
+        return inserted_ids.intersection(event_ids)
+
     def query_user_seen_sources(
         self,
         tenant_id: str = "default",
@@ -177,6 +185,55 @@ def test_worker_uses_stable_event_ids_for_detected_anomalies() -> None:
     first_ids = [item.event_id for item in first_storage.inserted_batches[0]]
     second_ids = [item.event_id for item in second_storage.inserted_batches[0]]
     assert first_ids == second_ids
+
+
+def test_worker_deduplicates_replayed_source_event_within_a_batch() -> None:
+    """同一条源日志重复投递时，只写入一个稳定异常事件。"""
+
+    logs = [build_log(index, src_ip=f"198.51.100.{index}") for index in range(1, 5)]
+    replayed = build_log(99, event_id="evt-replayed", src_ip="198.51.100.99")
+    storage = FakeStorage([*logs, replayed, replayed])
+    worker = AnomalyDetectorWorker(
+        storage=storage,
+        lookback_minutes=5,
+        batch_size=100,
+        clock=lambda: BASE_TIME + timedelta(minutes=2),
+    )
+
+    summary = worker.run_once()
+
+    assert summary.anomalies_detected == 1
+    assert summary.anomalies_inserted == 1
+    assert len(storage.inserted_batches) == 1
+    assert len(storage.inserted_batches[0]) == 1
+    assert storage.inserted_batches[0][0].related_event_ids == ["evt-replayed"]
+
+
+def test_worker_deduplicates_stable_ids_already_persisted_by_a_previous_worker() -> None:
+    """重启后的 worker 也不能把已有稳定异常 ID 再次写入。"""
+
+    logs = [build_log(index) for index in range(1, settings.threshold_user_fail_5m + 1)]
+    storage = FakeStorage(logs)
+    first_worker = AnomalyDetectorWorker(
+        storage=storage,
+        lookback_minutes=5,
+        batch_size=100,
+        clock=lambda: BASE_TIME + timedelta(minutes=2),
+    )
+    second_worker = AnomalyDetectorWorker(
+        storage=storage,
+        lookback_minutes=5,
+        batch_size=100,
+        clock=lambda: BASE_TIME + timedelta(minutes=2),
+    )
+
+    first = first_worker.run_once()
+    second = second_worker.run_once()
+
+    assert first.anomalies_inserted == 1
+    assert second.anomalies_detected == 0
+    assert second.anomalies_inserted == 0
+    assert len(storage.inserted_batches) == 1
 
 
 def test_worker_processes_oldest_page_first_when_backlog_exceeds_batch_size() -> None:
