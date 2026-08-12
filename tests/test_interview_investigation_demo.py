@@ -68,3 +68,12 @@ def test_committed_json_and_markdown_evidence_match_the_redacted_replay() -> Non
     for sensitive_value in ("demo.user.a", "demo.user.b", "demo.user.c", "demo.user.d", "203.0.113.42"):
         assert sensitive_value not in combined
     assert "raw_log" not in combined
+
+
+def test_tester_container_includes_committed_evidence_goldens() -> None:
+    root = Path(__file__).parents[1]
+    dockerfile = (root / "docker" / "tester.Dockerfile").read_text(encoding="utf-8")
+    compose = (root / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "COPY docs/evidence docs/evidence" in dockerfile
+    assert "./docs/evidence:/app/docs/evidence:ro" in compose

@@ -439,6 +439,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
+      - ./docs/evidence:/app/docs/evidence:ro
       - ./sql:/app/sql:ro
       - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ./config:/app/config:ro

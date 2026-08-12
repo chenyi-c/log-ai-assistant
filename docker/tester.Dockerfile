@@ -25,6 +25,7 @@ COPY src src
 COPY tests tests
 COPY sql sql
 COPY scripts scripts
+COPY docs/evidence docs/evidence
 COPY filebeat filebeat
 COPY log-generator log-generator
 
