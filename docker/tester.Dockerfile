@@ -26,6 +26,7 @@ COPY tests tests
 COPY sql sql
 COPY scripts scripts
 COPY docs/evidence docs/evidence
+COPY docker/tester.Dockerfile docker/tester.Dockerfile
 COPY filebeat filebeat
 COPY log-generator log-generator
 
