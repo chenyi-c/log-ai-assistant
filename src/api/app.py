@@ -507,12 +507,20 @@ def get_anomaly_investigation(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "clickhouse_query_failed", "message": "Failed to load anomaly investigation evidence", "details": {"event_id": event_id}},
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to load anomaly investigation evidence",
+                "details": {"event_id": event_id},
+            },
         ) from exc
     if anomaly is None:
         raise HTTPException(
             status_code=404,
-            detail={"code": "anomaly_not_found", "message": "Anomaly event not found", "details": {"event_id": event_id}},
+            detail={
+                "code": "anomaly_not_found",
+                "message": "Anomaly event not found",
+                "details": {"event_id": event_id},
+            },
         )
     return build_investigation(anomaly, review_store.get(event_id))
 

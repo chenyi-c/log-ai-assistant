@@ -243,9 +243,11 @@ cd frontend && npm ci && npm test -- --run && npm run build && npm audit --omit=
 ```
 
 `ruff format --check src tests log-generator` is not yet a required gate: the current
-incremental baseline reports 63 pre-existing files that need a mechanical formatting
-pass. Keep that cleanup in a separate formatting-only change so behavior work remains
-reviewable; the required lint baseline is `ruff check src tests log-generator`.
+post-closeout baseline reports 8 remaining files that need a mechanical formatting
+pass. The Python files changed by this closeout have already been formatted with the
+locked Ruff version. Keep the remaining cleanup in a separate formatting-only change
+so behavior work remains reviewable; the required lint baseline is
+`ruff check src tests log-generator`.
 Python `pip-audit` remains visible in CI as an advisory, non-blocking step while
 the tracked dependency pins are upgraded and regression-tested separately; it is
 not presented as a passing release gate.

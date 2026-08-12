@@ -54,9 +54,7 @@ def test_clickhouse_type_maps_supported_values(value: object, expected: str) -> 
 
 def test_columns_sql_renders_plain_and_aliased_columns() -> None:
     assert columns_sql(("event_id", "event_time")) == "event_id, event_time"
-    assert columns_sql(("event_id", "event_time"), "a") == (
-        "a.event_id AS event_id, a.event_time AS event_time"
-    )
+    assert columns_sql(("event_id", "event_time"), "a") == ("a.event_id AS event_id, a.event_time AS event_time")
 
 
 def test_json_loads_normalizes_structured_values_without_mutation() -> None:
