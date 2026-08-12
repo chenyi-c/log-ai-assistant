@@ -18,6 +18,16 @@
 
 ## 可复现异常检测演示
 
+### 本地证据摘要
+
+在不配置模型 Key、不连接 Kafka 或 ClickHouse 的情况下，可以输出一份固定合成场景的简短证据摘要：
+
+```bash
+python -m scripts.run_evidence_demo_brief
+```
+
+同一内容也可通过 `GET /api/v1/demo/evidence-brief` 获取。它只说明合成场景、规则覆盖、正常对照和一次 API 审核回放；不读取真实日志、不调用模型，也不代表生产检测准确率或 SOC 研判结论。
+
 我负责的 A 模块可以独立用一组固定、脱敏的场景复跑：
 
 ```text

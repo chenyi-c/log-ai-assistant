@@ -393,6 +393,19 @@ def replay_investigation_demo() -> dict[str, Any]:
     return run_interview_investigation_demo()
 
 
+@app.get(
+    "/api/v1/demo/evidence-brief",
+    tags=["demo"],
+    summary="Summarize fixed synthetic anomaly evidence for a local demo",
+    description="No-key, synthetic-only summary. It does not read or persist real security logs.",
+)
+def get_evidence_demo_brief() -> dict[str, Any]:
+    """Expose the deterministic demo scope and limitations without external services."""
+    from src.detection.evidence_demo_brief import build_evidence_demo_brief
+
+    return build_evidence_demo_brief()
+
+
 @app.put(
     "/api/v1/anomalies/{event_id}/review",
     response_model=AnomalyReviewResponse,
