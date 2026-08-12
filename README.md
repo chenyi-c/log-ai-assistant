@@ -243,7 +243,7 @@ cd frontend && npm ci && npm test -- --run && npm run build && npm audit --omit=
 ```
 
 `ruff format --check src tests log-generator` is not yet a required gate: the current
-post-closeout baseline reports 8 remaining files that need a mechanical formatting
+post-closeout baseline reports 6 remaining files that need a mechanical formatting
 pass. The Python files changed by this closeout have already been formatted with the
 locked Ruff version. Keep the remaining cleanup in a separate formatting-only change
 so behavior work remains reviewable; the required lint baseline is

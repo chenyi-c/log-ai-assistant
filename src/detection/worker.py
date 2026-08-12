@@ -36,8 +36,7 @@ class DetectionStorage(Protocol):
 
     def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None: ...
 
-    def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]:
-        ...
+    def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]: ...
 
     def get_user_baseline(
         self, user_id: str, *, tenant_id: str | None = None, baseline_date=None

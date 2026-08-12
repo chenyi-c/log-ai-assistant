@@ -68,11 +68,7 @@ class FakeStorage:
         self.inserted_batches.append(list(anomalies))
 
     def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]:
-        inserted_ids = {
-            anomaly.event_id
-            for batch in self.inserted_batches
-            for anomaly in batch
-        }
+        inserted_ids = {anomaly.event_id for batch in self.inserted_batches for anomaly in batch}
         return inserted_ids.intersection(event_ids)
 
     def query_user_seen_sources(
