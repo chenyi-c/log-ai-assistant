@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import errno
 import hashlib
+import importlib
 import os
 import subprocess
 import time
@@ -9,7 +10,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time as day_time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, cast
 from zoneinfo import ZoneInfo
 
 try:  # Linux containers use POSIX advisory locks.
@@ -491,8 +492,19 @@ def _unlock_file(handle: Any) -> None:
     getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_UN"))
 
 
+class _MsvcrtLocking(Protocol):
+    LK_NBLCK: int
+    LK_UNLCK: int
+
+    def locking(self, file_descriptor: int, mode: int, byte_count: int) -> None: ...
+
+
+def _load_msvcrt() -> _MsvcrtLocking:
+    return cast(_MsvcrtLocking, importlib.import_module("msvcrt"))
+
+
 def _lock_windows_file(handle: Any) -> None:
-    import msvcrt
+    msvcrt = _load_msvcrt()
 
     handle.seek(0, os.SEEK_END)
     if handle.tell() == 0:
@@ -510,7 +522,7 @@ def _lock_windows_file(handle: Any) -> None:
 
 
 def _unlock_windows_file(handle: Any) -> None:
-    import msvcrt
+    msvcrt = _load_msvcrt()
 
     handle.seek(0)
     msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
