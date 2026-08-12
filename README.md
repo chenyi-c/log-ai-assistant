@@ -107,7 +107,7 @@ docker compose run --rm tester python scripts/run_interview_investigation_demo.p
 
 该入口在同一进程内依次完成固定脱敏日志的规则检测、稳定 ID/去重检查、`GET /investigation` 查询以及一次 `pending -> confirmed` 的真实 FastAPI 复核回放。输出只保留规则命中、脱敏证据、ATT&CK 引用和复核状态；不读取线上日志或外部密钥。启动完整 API 后，可导入 [`postman/log-ai-investigation-demo.postman_collection.json`](postman/log-ai-investigation-demo.postman_collection.json) 来调用固定回放、研判查询和 `confirmed` / `false_positive` 复核。`anomalyId` 需要替换为已入库异常 ID；固定回放本身不把样例写入生产存储。
 
-最近一次本地 Docker 终端证据见 [`docs/evidence/interview-investigation-demo-v1.md`](docs/evidence/interview-investigation-demo-v1.md)。CI 会生成并上传 JSON/Markdown 证据，可从 [Anomaly Detection CI](https://github.com/chenyi-c/log-ai-assistant/actions/workflows/ci.yml) 的 `anomaly-investigation-evidence` artifact 下载。60 秒讲解：我负责的 Python A 模块把日志转为可解释异常事件；稳定 `anomaly_id` 用于幂等去重，证据和 ATT&CK 映射用于人工核查，最后通过演示级复核接口闭环。Kafka、Flink、ClickHouse 和前端仍是团队全链路，不宣称为我独立开发。
+最近一次本地脱敏证据提供 [Markdown](docs/evidence/interview-investigation-demo.md) 和 [JSON](docs/evidence/interview-investigation-demo.json) 两种格式；固定 `anomaly_id`、原因码和脱敏字段由回归测试交叉校验。CI 会生成并上传同类 JSON/Markdown evidence artifact。60 秒讲解：我负责的 Python A 模块把日志转为可解释异常事件；稳定 `anomaly_id` 用于幂等去重，证据和 ATT&CK 映射用于人工核查，最后通过演示级复核接口闭环。Kafka、Flink、ClickHouse 和前端仍是团队全链路，不宣称为我独立开发。该次证据在本地 Python fallback 中生成；Docker Desktop daemon 未运行，因此不宣称为 Docker-backed 结果。
 
 ### 规则回归报告
 
@@ -238,10 +238,17 @@ The repository uses Docker as the source of truth for backend tests. Before open
 ```bash
 docker compose run --rm tester
 ruff check src tests log-generator
-ruff format --check src tests log-generator
 mypy
-cd frontend && npm ci && npm run build && npm audit --omit=dev
+cd frontend && npm ci && npm test -- --run && npm run build && npm audit --omit=dev
 ```
+
+`ruff format --check src tests log-generator` is not yet a required gate: the current
+incremental baseline reports 63 pre-existing files that need a mechanical formatting
+pass. Keep that cleanup in a separate formatting-only change so behavior work remains
+reviewable; the required lint baseline is `ruff check src tests log-generator`.
+Python `pip-audit` remains visible in CI as an advisory, non-blocking step while
+the tracked dependency pins are upgraded and regression-tested separately; it is
+not presented as a passing release gate.
 
 To install the local commit checks, first install the development tools and then enable the hooks:
 

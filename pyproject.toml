@@ -7,9 +7,6 @@ extend-exclude = ["frontend/node_modules", "frontend/dist"]
 select = ["E", "F"]
 ignore = ["E501"] # Long SQL queries and user-facing explanation strings are formatter-safe as-is.
 
-[tool.ruff.format]
-line-ending = "lf"
-
 [tool.mypy]
 python_version = "3.11"
 files = ["src/operations/runner.py", "src/ueba/baseline.py"]

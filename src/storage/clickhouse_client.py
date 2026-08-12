@@ -1,11 +1,25 @@
 from __future__ import annotations
 
-import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from src.config import settings
+from src.storage.clickhouse_helpers import (
+    assert_allowed_values as _assert_allowed_values,
+    build_filters as _build_filters,
+    coerce_date as _coerce_date,
+    columns_sql as _columns_sql,
+    json_loads as _json_loads,
+    model_payload as _model_payload,
+    normalize_limit as _normalize_limit,
+    pagination_parameters as _pagination_parameters,
+    parse_select_aliases as _parse_select_aliases,
+    row_from_payload as _row_from_payload,
+    split_non_empty_lines as _split_non_empty_lines,
+    string_list as _string_list,
+    where as _where,
+)
 from src.schemas import (
     AIFeedback,
     AcceptanceMetric,
@@ -2092,64 +2106,6 @@ def _build_daily_report_filters(
     return filters, parameters
 
 
-def _build_filters(
-    *,
-    equals: dict[str, Any],
-    time_field: str | None = None,
-    start_time: datetime | None = None,
-    end_time: datetime | None = None,
-) -> tuple[list[str], dict[str, Any]]:
-    filters: list[str] = []
-    parameters: dict[str, Any] = {}
-    for field, value in equals.items():
-        if value is None:
-            continue
-        filters.append(f"{field} = {{{field}:{_clickhouse_type(value)}}}")
-        parameters[field] = value
-    if time_field and (start_time or end_time):
-        if start_time:
-            filters.append(f"{time_field} >= {{start_time:DateTime64(3)}}")
-            parameters["start_time"] = start_time
-        if end_time:
-            filters.append(f"{time_field} <= {{end_time:DateTime64(3)}}")
-            parameters["end_time"] = end_time
-    return filters, parameters
-
-
-def _where(filters: Sequence[str]) -> str:
-    return f"WHERE {' AND '.join(filters)}" if filters else ""
-
-
-def _columns_sql(columns: Sequence[str], table_alias: str | None = None) -> str:
-    if not table_alias:
-        return ", ".join(columns)
-    return ", ".join(f"{table_alias}.{column} AS {column}" for column in columns)
-
-
-def _pagination_parameters(*, limit: int, offset: int) -> dict[str, int]:
-    return {
-        "limit": _normalize_limit(limit),
-        "offset": max(0, int(offset)),
-    }
-
-
-def _normalize_limit(limit: int) -> int:
-    return max(1, int(limit))
-
-
-def _clickhouse_type(value: Any) -> str:
-    # 一处细节：datetime 需要写在 date 的前面，因为 datetime 是 date 的子类
-    if isinstance(value, datetime):
-        return "DateTime64(3)"
-    if isinstance(value, date):
-        return "Date"
-    if isinstance(value, int):
-        return "Int64"
-    if isinstance(value, float):
-        return "Float64"
-    return "String"
-
-
 # 调用 json_loads 把日志的 json 字段转化为 Python 对象
 def _normalize_log_row(row: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
@@ -2465,114 +2421,3 @@ def _baseline_feature_value(value: Any) -> dict[str, Any]:
             }
         return {"common_values": [], "value_histogram": value}
     return {"common_values": [str(value)] if value not in (None, "") else [], "value_histogram": {}}
-
-
-def _coerce_date(value: Any) -> date:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    return date.fromisoformat(str(value))
-
-
-def _split_non_empty_lines(value: str) -> list[str]:
-    return [line.strip() for line in value.splitlines() if line.strip()]
-
-
-# 把 json 字符串转化成字典或者列表
-def _json_loads(value: Any, *, default: Any) -> Any:
-    if value is None or value == "":
-        return default
-    if isinstance(value, (dict, list)):
-        return value
-    try:
-        return json.loads(str(value))
-    except (TypeError, ValueError):
-        return default
-
-
-# 和 loads 相反，python 对象转化为 json 字符串
-def _json_dumps(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    return json.dumps(
-        value if value is not None else {},
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=_json_default,
-    )
-
-
-def _json_default(value: Any) -> Any:
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json")
-    return str(value)
-
-
-# 把 string 和 Iterable 转化为列表
-def _string_list(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [value] if value else []
-    if isinstance(value, Iterable):
-        return [str(item) for item in value if item is not None]
-    return []
-
-
-# 把 Pydantic 对象转化为字典
-def _model_payload(value: Any) -> dict[str, Any]:
-    if hasattr(value, "model_dump"):
-        return value.model_dump(mode="python")
-    return dict(value)
-
-
-# 把字典转化为可以放进数据库对应列的数据结构
-def _row_from_payload(
-    payload: dict[str, Any],
-    columns: Sequence[str],
-    *,
-    json_fields: set[str] | None = None,
-    defaults: dict[str, Any] | None = None,
-) -> list[Any]:
-    resolved_defaults = defaults or {}
-    resolved_json_fields = json_fields or set()
-    row: list[Any] = []
-    for column in columns:
-        value = payload.get(column, resolved_defaults.get(column))
-        if value is None and column in resolved_defaults:
-            value = resolved_defaults[column]
-        if column in resolved_json_fields:
-            value = _json_dumps(value)
-        if isinstance(value, bool):
-            value = int(value)
-        row.append(value)
-    return row
-
-
-# 检查传入的内容是否在允许范围内（用 set 的差实现）
-def _assert_allowed_values(values: Sequence[str], allowed: Iterable[str], label: str) -> None:
-    allowed_set = set(allowed)
-    invalid = sorted(set(values) - allowed_set)
-    if invalid:
-        raise ValueError(f"Unsupported {label}: {', '.join(invalid)}")
-
-
-# 从 SELECT 中得到列名字段
-def _parse_select_aliases(sql: str) -> list[str]:
-    upper_sql = sql.upper()
-    if "SELECT" not in upper_sql or "FROM" not in upper_sql:
-        return []
-    # 字符串切片，取 SELECT 和 FROM 之间的字段（本质[:]语法）
-    select_sql = sql[upper_sql.index("SELECT") + len("SELECT") : upper_sql.index("FROM")]
-    aliases: list[str] = []
-    for raw_part in select_sql.split(","):
-        part = raw_part.strip()
-        if " AS " in part.upper():
-            # 从右边第一个空格切，取右数第一个字段（即 AS 右边的字段，别名）
-            aliases.append(part.rsplit(" ", 1)[-1])
-        # 排除诸如 max(count) 这类字段
-        elif part and "(" not in part:
-            # 比如 b.tenant_id 执行后得到 tenant_id
-            aliases.append(part.split(".")[-1])
-    return aliases

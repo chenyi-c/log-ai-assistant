@@ -1,24 +1,25 @@
 # Engineering quality audit
 
-_Log AI Assistant · 2026-08-11 · Baseline for technical-debt remediation_
+_Log AI Assistant · 2026-08-12 · Portfolio closeout verification_
 
 ---
 
 ## 📋 Executive summary
 
-The functional baseline is healthy after two targeted fixes: the backend suite has 169 passing tests and the frontend production build passes. The repository has no production frontend dependency vulnerabilities, but its development dependency tree has five known vulnerabilities, including three high-severity findings. The main quality gaps are missing automated guardrails, incomplete type checking, inconsistent runtime diagnostics, and a small number of oversized boundary modules.
+The closeout keeps the deterministic investigation behavior while splitting pure ClickHouse, investigation-support, and React presentation helpers behind characterization tests. The verified local fallback suite has 216 passing tests, Ruff lint and the planned Mypy scope pass, the frontend unit test and production build pass, and `npm audit --omit=dev` reports zero production vulnerabilities. Docker Compose configuration validates, but Docker-backed tests could not run because the Docker Desktop daemon was unavailable. Python dependency audit is advisory because the current pins report 13 known vulnerabilities across 5 packages; this closeout does not bundle dependency upgrades.
 
 | Area | Current state | Priority |
 | --- | --- | --- |
-| Backend tests | 169 passing locally | Maintain |
-| Frontend build | Type check and Vite build pass | Maintain |
+| Backend tests | 216 passing locally with `PYTHONPATH=.` | Maintain |
+| Frontend test/build | 2 Vitest tests pass; type check and Vite build pass | Maintain |
 | Production npm audit | 0 vulnerabilities | Maintain |
-| Development npm audit | 5 vulnerabilities, 3 high | High risk |
-| Python lint | 51 Ruff findings | High return |
-| Python types | 30+ Mypy findings | High return |
-| CI and pre-commit | Not configured | High return |
+| Python dependency audit | 13 known vulnerabilities in 5 pinned packages | Advisory; upgrade separately |
+| Python lint | `ruff check src tests log-generator` passes | Maintain |
+| Python types | Planned core-module Mypy scope passes | Expand incrementally |
+| CI and pre-commit | Tracked incremental required gates | Maintain |
+| Ruff formatting | 63 pre-existing files fail whole-repository format check | Separate mechanical PR |
 | Logging | CLI `print` calls and few module loggers | Medium |
-| Large modules | Storage 2,549 lines; API 1,977; UI 2,462 | Medium risk |
+| Large modules | Storage 2,423 lines; API 1,745; UI 2,168 after focused extraction | Medium risk |
 
 ## 🎯 Completed in this audit
 
@@ -26,7 +27,9 @@ The functional baseline is healthy after two targeted fixes: the backend suite h
 | --- | --- | --- |
 | Windows test compatibility | Replaced the unconditional Unix-only `fcntl` import with a standard-library Windows file-lock fallback | New lock regression test passes |
 | Deterministic baseline test | Added optional `end_date` injection with the existing UTC-today default unchanged | Formerly date-sensitive baseline test passes |
-| Baseline validation | Re-ran the complete backend suite | `169 passed` |
+| Baseline validation | Re-ran the complete local fallback backend suite | `216 passed` |
+| Boundary extraction | Moved pure storage, API support, and shared React presentation helpers | Focused Python/API tests and Vitest pass |
+| Evidence publication | Refreshed deterministic JSON and Markdown evidence and checked redaction/ID consistency | `5 passed` evidence regressions |
 
 ## ⚠️ Prioritized technical-debt register
 
@@ -34,27 +37,28 @@ The functional baseline is healthy after two targeted fixes: the backend suite h
 
 | ID | Finding | Evidence | Remediation | Status |
 | --- | --- | --- | --- | --- |
-| SEC-01 | Frontend development dependency vulnerabilities | `npm audit`: Vite 5 chain exposes Babel, esbuild, nanoid and PostCSS advisories | Upgrade Vite and compatible React plugin/Node base; run lint, type-check and build | Planned |
-| REL-01 | No CI or local commit gate | No `.github/workflows` or `.pre-commit-config.yaml` | Add reproducible Python and frontend checks plus dependency audit | Planned |
-| TYP-01 | Type checker has unresolved errors and unstable local incremental cache | Mypy finds 30+ errors and crashes writing cache under the local Python 3.13 environment | Pin CI to Python 3.11, run Mypy without incremental cache locally, repair concrete annotations | Planned |
+| SEC-01 | Frontend dependency audit | Full `npm audit` reports 0 vulnerabilities after the tracked Vite toolchain update | Keep audit required and review future advisories | Completed |
+| SEC-02 | Python dependency pins have published advisories | `python-dotenv 1.0.1`, `kafka-python 2.0.2`, `requests 2.32.3`, `pytest 8.2.2`, and `starlette 0.37.2` produce 13 `pip-audit` findings | Upgrade in a dedicated dependency change with Docker regressions; keep CI audit visible and non-blocking meanwhile | Advisory |
+| REL-01 | Required gates need an honest incremental baseline | CI and pre-commit now run reproducible Ruff/Mypy/test/build/audit checks | Expand only after the repository passes the added gate | Completed |
+| TYP-01 | Whole-repository type coverage remains incomplete | Planned Mypy scope passes for operations runner and baseline modules | Expand module-by-module | Incremental |
 
 ### High return, low behavior risk
 
 | ID | Finding | Evidence | Remediation | Status |
 | --- | --- | --- | --- | --- |
-| LINT-01 | Unused imports and local variables | 11 Ruff findings are auto-fixable | Apply safe fixes, then address the remaining import-layout findings deliberately | Planned |
-| LINT-02 | No committed formatter/linter configuration | No `pyproject.toml`, ESLint or Prettier configuration | Add Ruff, Mypy, ESLint and Prettier configuration with explicit scripts | Planned |
-| DOC-01 | README lacks contributor quality commands and security policy | README documents runtime but not local quality workflow | Document exact validation commands and supported toolchain | Planned |
-| DOC-02 | No release history | No `CHANGELOG.md` | Add Keep-a-Changelog compatible starting history | Planned |
-| CFG-01 | Quality tool versions are not project-pinned | Only runtime/test requirements are committed | Add dev-quality dependency definitions used by CI and pre-commit | Planned |
+| LINT-01 | Required Ruff lint baseline | `ruff check src tests log-generator` passes | Keep as a required CI/pre-commit gate | Completed |
+| FORMAT-01 | Whole-repository formatter baseline is not clean | `ruff format --check src tests log-generator` reports 63 pre-existing files | Use one separate formatting-only PR; do not hide files with excludes | Deferred |
+| DOC-01 | Contributor quality commands | README lists the verified incremental gates and formatting limitation | Keep current | Completed |
+| DOC-02 | Release history | `CHANGELOG.md` is tracked | Keep current | Completed |
+| CFG-01 | Quality tool versions | `requirements/dev.txt`, `pyproject.toml`, CI, and pre-commit are tracked | Keep current | Completed |
 
 ### Medium risk or larger refactoring scope
 
 | ID | Finding | Evidence | Remediation | Status |
 | --- | --- | --- | --- | --- |
 | LOG-01 | Runtime diagnostics are inconsistent | `print` is used by CLI/worker paths; only three modules initialize loggers | Introduce a shared logging configuration, then migrate module-by-module without changing CLI output contracts | Deferred until guardrails exist |
-| MOD-01 | ClickHouse storage boundary is oversized | `src/storage/clickhouse_client.py` has 2,549 lines | Split query, serialization and schema responsibilities behind tested public methods | Deferred: behavior-sensitive |
-| MOD-02 | API route and UI composition modules are oversized | `src/api/app.py` has 1,977 lines; `frontend/src/App.tsx` has 2,462 lines | Extract cohesive route/UI feature groups only after characterization tests | Deferred: behavior-sensitive |
+| MOD-01 | ClickHouse storage boundary remains large | Pure filters, pagination, type mapping, and normalization helpers were extracted | Continue only behind characterization tests | Incremental |
+| MOD-02 | API route and UI composition boundaries remain large | Investigation support and shared stateless React presentation code were extracted; routes and data fetching stayed in place | Continue feature-by-feature | Incremental |
 | TYPE-02 | Domain values use broad `dict[str, Any]` at boundaries | Static scan shows extensive unstructured payload use | Introduce narrow `TypedDict` or Pydantic response types at one boundary per change | Deferred: incremental migration |
 
 ## 📍 Remediation order
@@ -75,11 +79,20 @@ docker compose run --rm tester
 # Local fallback when Docker Desktop is unavailable
 $env:PYTHONPATH = "."; pytest -q
 
+# Required Python quality gates
+ruff check src tests log-generator
+mypy src/operations/runner.py src/ueba/baseline.py
+
 # Frontend validation
 Set-Location frontend
 npm ci
+npm test -- --run
 npm run build
 npm audit --omit=dev
 ```
 
-> 📌 **Environment note:** Docker Compose is installed on the audit workstation, but its Docker Desktop daemon was not running. Local Python fallback was therefore used for the recorded backend result.
+> **Environment note:** `docker compose config --quiet` passed. `docker compose run --rm tester` was attempted but the `dockerDesktopLinuxEngine` named pipe was missing, so no Docker-backed test result is claimed. The recorded backend result is the explicit local fallback.
+
+> **Formatting baseline:** `ruff format --check src tests log-generator` currently reports 63 pre-existing files. It is intentionally not a required gate yet and no exclude was added to hide this debt. Resolve it in a separate formatting-only PR, then promote the command to required.
+
+> **Dependency-audit boundary:** `pip-audit -r requirements/backend.txt -r requirements/test.txt` currently exits 1 with 13 findings in 5 pinned packages. CI retains it as a named advisory step with `continue-on-error`; no passing Python dependency-audit claim is made. Dependency upgrades are intentionally left for a dedicated, Docker-verified change.

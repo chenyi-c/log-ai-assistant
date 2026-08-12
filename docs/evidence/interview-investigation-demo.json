@@ -1,0 +1,134 @@
+{
+  "version": "v1",
+  "requiresExternalApiKey": false,
+  "summary": {
+    "selectedCaseCount": 5,
+    "apiReviewReplayCount": 1
+  },
+  "cases": [
+    {
+      "scenarioName": "failed-login-user-spike",
+      "inputEventCount": 5,
+      "deduplicated": true,
+      "normalControl": false,
+      "anomalyId": "anom-9613110a562f1e4aea6139d8067bd669",
+      "reasonCodes": [
+        "failed_login_spike"
+      ],
+      "sanitizedEvidence": {
+        "user_id": "d***t",
+        "failed_count_5m": 5
+      },
+      "attackTechniques": [
+        {
+          "techniqueId": "T1110",
+          "name": "Brute Force",
+          "source": "manual_attck_reference"
+        }
+      ],
+      "apiReplay": {
+        "beforeReviewStatus": "pending",
+        "afterReviewStatus": "confirmed",
+        "investigation": {
+          "anomalyId": "anom-9613110a562f1e4aea6139d8067bd669",
+          "riskLevel": "high",
+          "reasonCodes": [
+            "failed_login_spike"
+          ],
+          "sanitizedEvidence": {
+            "user_id": "d***t",
+            "failed_count_5m": 5
+          },
+          "attackTechniques": [
+            {
+              "techniqueId": "T1110",
+              "name": "Brute Force",
+              "source": "manual_attck_reference"
+            }
+          ],
+          "whyMatched": {
+            "timeWindow": "5m",
+            "observedEventCount": 5,
+            "threshold": 5,
+            "relatedEventIds": [
+              "failed-user-005"
+            ]
+          },
+          "manualCheckSteps": [
+            "Verify the masked event sequence against the authorized source system before any response action.",
+            "Check whether the account or source has an approved access-change or lockout explanation."
+          ],
+          "reviewStatus": "confirmed",
+          "reviewerNote": "Synthetic interview replay.",
+          "reviewedAt": "2026-08-11T00:00:00Z"
+        }
+      }
+    },
+    {
+      "scenarioName": "credential-stuffing",
+      "inputEventCount": 4,
+      "deduplicated": true,
+      "normalControl": false,
+      "anomalyId": "anom-a6ee1adbc26316f4b1e22d487142222f",
+      "reasonCodes": [
+        "credential_stuffing_pattern"
+      ],
+      "sanitizedEvidence": {
+        "src_ip": "203.0.***.***",
+        "distinct_users_5m": [
+          "d***a",
+          "d***b",
+          "d***c",
+          "d***d"
+        ],
+        "count": 4
+      },
+      "attackTechniques": [
+        {
+          "techniqueId": "T1110.004",
+          "name": "Credential Stuffing",
+          "source": "manual_attck_reference"
+        }
+      ],
+      "apiReplay": null
+    },
+    {
+      "scenarioName": "high-api-rate",
+      "inputEventCount": 80,
+      "deduplicated": true,
+      "normalControl": false,
+      "anomalyId": "anom-9159951ea5aab04842f3434ac2bd1ebc",
+      "reasonCodes": [
+        "high_api_rate"
+      ],
+      "sanitizedEvidence": {
+        "user_id": "a***t",
+        "api_calls_1m": 80
+      },
+      "attackTechniques": [],
+      "apiReplay": null
+    },
+    {
+      "scenarioName": "normal-known-source-login",
+      "inputEventCount": 1,
+      "deduplicated": true,
+      "normalControl": true,
+      "anomalyId": null,
+      "reasonCodes": [],
+      "sanitizedEvidence": {},
+      "attackTechniques": [],
+      "apiReplay": null
+    },
+    {
+      "scenarioName": "normal-low-rate-api",
+      "inputEventCount": 3,
+      "deduplicated": true,
+      "normalControl": true,
+      "anomalyId": null,
+      "reasonCodes": [],
+      "sanitizedEvidence": {},
+      "attackTechniques": [],
+      "apiReplay": null
+    }
+  ]
+}

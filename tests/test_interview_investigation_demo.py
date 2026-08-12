@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import app
 from src.detection.interview_demo import run_interview_investigation_demo
+from src.detection.interview_demo import render_interview_investigation_demo_markdown
 
 
 def test_interview_demo_replays_detection_then_api_review_without_raw_logs() -> None:
@@ -37,3 +38,16 @@ def test_demo_api_returns_the_repeatable_investigation_replay() -> None:
 
     assert response.status_code == 200
     assert response.json()["summary"] == {"selectedCaseCount": 5, "apiReviewReplayCount": 1}
+
+
+def test_json_and_markdown_evidence_share_ids_and_redact_fixture_values() -> None:
+    report = run_interview_investigation_demo()
+    markdown = render_interview_investigation_demo_markdown(report)
+
+    anomaly_ids = [item["anomalyId"] for item in report["cases"] if item["anomalyId"]]
+    assert anomaly_ids
+    assert all(anomaly_id in markdown for anomaly_id in anomaly_ids)
+    combined = f"{report}\n{markdown}"
+    for sensitive_value in ("demo.user.a", "demo.user.b", "demo.user.c", "demo.user.d", "203.0.113.42"):
+        assert sensitive_value not in combined
+    assert "raw_log" not in combined

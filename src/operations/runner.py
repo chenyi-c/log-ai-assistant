@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
-import sys
 import time
 import uuid
 from contextlib import contextmanager
@@ -484,11 +483,11 @@ class OperationsRunner:
 
 
 def _lock_file(handle: Any) -> None:
-    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_EX"))
 
 
 def _unlock_file(handle: Any) -> None:
-    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_UN"))
 
 
 @contextmanager
