@@ -44,7 +44,9 @@ def run_interview_investigation_demo() -> dict[str, Any]:
             "reasonCodes": investigation["reasonCodes"] if investigation else [],
             "sanitizedEvidence": investigation["sanitizedEvidence"] if investigation else {},
             "attackTechniques": investigation["attackTechniques"] if investigation else [],
-            "apiReplay": _replay_api(investigation) if investigation and case["scenarioName"] == "failed-login-user-spike" else None,
+            "apiReplay": _replay_api(investigation)
+            if investigation and case["scenarioName"] == "failed-login-user-spike"
+            else None,
         }
         cases.append(item)
     return {
@@ -59,28 +61,34 @@ def render_interview_investigation_demo_markdown(report: dict[str, Any]) -> str:
     """Render a compact terminal artifact without synthetic raw event bodies."""
     lines = ["# Investigation Interview Demo", "", "Fixed synthetic replay; not a SOC/SIEM or accuracy claim.", ""]
     for case in report["cases"]:
-        lines.extend([
-            f"## {case['scenarioName']}",
-            f"- Input events: {case['inputEventCount']}",
-            f"- Deduplicated replay: {case['deduplicated']}",
-        ])
+        lines.extend(
+            [
+                f"## {case['scenarioName']}",
+                f"- Input events: {case['inputEventCount']}",
+                f"- Deduplicated replay: {case['deduplicated']}",
+            ]
+        )
         if case["normalControl"]:
             lines.append("- Result: normal control; no anomaly emitted.")
         else:
-            techniques = ", ".join(item["techniqueId"] for item in case["attackTechniques"]) or "No ATT&CK mapping asserted"
-            lines.extend([
-                f"- Anomaly ID: {case['anomalyId']}",
-                f"- Rule hits: {', '.join(case['reasonCodes'])}",
-                f"- ATT&CK references: {techniques}",
-                f"- Sanitized evidence: {case['sanitizedEvidence']}",
-            ])
+            techniques = (
+                ", ".join(item["techniqueId"] for item in case["attackTechniques"]) or "No ATT&CK mapping asserted"
+            )
+            lines.extend(
+                [
+                    f"- Anomaly ID: {case['anomalyId']}",
+                    f"- Rule hits: {', '.join(case['reasonCodes'])}",
+                    f"- ATT&CK references: {techniques}",
+                    f"- Sanitized evidence: {case['sanitizedEvidence']}",
+                ]
+            )
         if case["apiReplay"]:
             lines.append(
                 "- API review replay: "
                 f"{case['apiReplay']['beforeReviewStatus']} -> {case['apiReplay']['afterReviewStatus']}"
             )
         lines.append("")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines)
 
 
 def _replay_api(investigation: dict[str, Any]) -> dict[str, Any]:

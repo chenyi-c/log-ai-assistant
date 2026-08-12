@@ -6,18 +6,18 @@ _Log AI Assistant · 2026-08-12 · Portfolio closeout verification_
 
 ## 📋 Executive summary
 
-The closeout keeps the deterministic investigation behavior while splitting pure ClickHouse, investigation-support, and React presentation helpers behind characterization tests. The verified local fallback suite has 216 passing tests, Ruff lint and the planned Mypy scope pass, the frontend unit test and production build pass, and `npm audit --omit=dev` reports zero production vulnerabilities. Docker Compose configuration validates, but Docker-backed tests could not run because the Docker Desktop daemon was unavailable. Python dependency audit is advisory because the current pins report 13 known vulnerabilities across 5 packages; this closeout does not bundle dependency upgrades.
+The closeout keeps the deterministic investigation behavior while splitting pure ClickHouse, investigation-support, and React presentation helpers behind characterization tests. The verified local fallback suite has 218 passing tests, Ruff lint and the planned Mypy scope pass, the frontend unit test and production build pass, and `npm audit --omit=dev` reports zero production vulnerabilities. Docker Compose configuration validates, but Docker-backed tests could not run because the Docker Desktop daemon was unavailable. Python dependency audit is advisory because the current pins report 13 known vulnerabilities across 5 packages; this closeout does not bundle dependency upgrades.
 
 | Area | Current state | Priority |
 | --- | --- | --- |
-| Backend tests | 216 passing locally with `PYTHONPATH=.` | Maintain |
+| Backend tests | 218 passing locally with `PYTHONPATH=.` | Maintain |
 | Frontend test/build | 2 Vitest tests pass; type check and Vite build pass | Maintain |
 | Production npm audit | 0 vulnerabilities | Maintain |
 | Python dependency audit | 13 known vulnerabilities in 5 pinned packages | Advisory; upgrade separately |
 | Python lint | `ruff check src tests log-generator` passes | Maintain |
 | Python types | Planned core-module Mypy scope passes | Expand incrementally |
 | CI and pre-commit | Tracked incremental required gates | Maintain |
-| Ruff formatting | 6 untouched legacy files remain after formatting closeout-touched Python files | Separate mechanical PR |
+| Ruff formatting | 5 untouched legacy files remain after formatting closeout-touched Python files | Separate mechanical PR |
 | Logging | CLI `print` calls and few module loggers | Medium |
 | Large modules | Storage 2,423 lines; API 1,745; UI 2,168 after focused extraction | Medium risk |
 
@@ -27,7 +27,7 @@ The closeout keeps the deterministic investigation behavior while splitting pure
 | --- | --- | --- |
 | Windows test compatibility | Replaced the unconditional Unix-only `fcntl` import with a standard-library Windows file-lock fallback | New lock regression test passes |
 | Deterministic baseline test | Added optional `end_date` injection with the existing UTC-today default unchanged | Formerly date-sensitive baseline test passes |
-| Baseline validation | Re-ran the complete local fallback backend suite | `216 passed` |
+| Baseline validation | Re-ran the complete local fallback backend suite | `218 passed` |
 | Boundary extraction | Moved pure storage, API support, and shared React presentation helpers | Focused Python/API tests and Vitest pass |
 | Evidence publication | Refreshed deterministic JSON and Markdown evidence and checked redaction/ID consistency | `5 passed` evidence regressions |
 
@@ -47,7 +47,7 @@ The closeout keeps the deterministic investigation behavior while splitting pure
 | ID | Finding | Evidence | Remediation | Status |
 | --- | --- | --- | --- | --- |
 | LINT-01 | Required Ruff lint baseline | `ruff check src tests log-generator` passes | Keep as a required CI/pre-commit gate | Completed |
-| FORMAT-01 | Whole-repository formatter baseline is not clean | Locked Ruff 0.15.22 reports 6 remaining untouched legacy files after formatting all closeout-touched Python files | Use one separate formatting-only PR; do not hide files with excludes | Deferred |
+| FORMAT-01 | Whole-repository formatter baseline is not clean | Locked Ruff 0.15.22 reports 5 remaining untouched legacy files after formatting all closeout-touched Python files | Use one separate formatting-only PR; do not hide files with excludes | Deferred |
 | DOC-01 | Contributor quality commands | README lists the verified incremental gates and formatting limitation | Keep current | Completed |
 | DOC-02 | Release history | `CHANGELOG.md` is tracked | Keep current | Completed |
 | CFG-01 | Quality tool versions | `requirements/dev.txt`, `pyproject.toml`, CI, and pre-commit are tracked | Keep current | Completed |
@@ -93,6 +93,6 @@ npm audit --omit=dev
 
 > **Environment note:** `docker compose config --quiet` passed. `docker compose run --rm tester` was attempted but the `dockerDesktopLinuxEngine` named pipe was missing, so no Docker-backed test result is claimed. The recorded backend result is the explicit local fallback.
 
-> **Formatting baseline:** After formatting every Python file changed by this closeout with locked Ruff 0.15.22, `ruff format --check src tests log-generator` reports exactly 6 remaining untouched legacy files: `src/detection/demo.py`, `src/detection/evidence_demo_brief.py`, `src/detection/interview_demo.py`, `src/detection/investigation.py`, `src/detection/regression.py`, and `tests/test_investigation_pack.py`. The check is intentionally not required yet and no exclude hides this debt. Resolve those files in a separate formatting-only PR, then promote the command to required.
+> **Formatting baseline:** After formatting every Python file changed by this closeout with locked Ruff 0.15.22, `ruff format --check src tests log-generator` reports exactly 5 remaining untouched legacy files: `src/detection/demo.py`, `src/detection/evidence_demo_brief.py`, `src/detection/investigation.py`, `src/detection/regression.py`, and `tests/test_investigation_pack.py`. The check is intentionally not required yet and no exclude hides this debt. Resolve those files in a separate formatting-only PR, then promote the command to required.
 
 > **Dependency-audit boundary:** `pip-audit -r requirements/backend.txt -r requirements/test.txt` currently exits 1 with 13 findings in 5 pinned packages. CI retains it as a named advisory step with `continue-on-error`; no passing Python dependency-audit claim is made. Dependency upgrades are intentionally left for a dedicated, Docker-verified change.

@@ -1,10 +1,20 @@
 """Regression coverage for the no-key interview investigation replay."""
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from src.api.app import app
-from src.detection.interview_demo import run_interview_investigation_demo
-from src.detection.interview_demo import render_interview_investigation_demo_markdown
+from src.detection.interview_demo import (
+    render_interview_investigation_demo_markdown,
+    run_interview_investigation_demo,
+)
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+JSON_GOLDEN = REPOSITORY_ROOT / "docs" / "evidence" / "interview-investigation-demo.json"
+MARKDOWN_GOLDEN = REPOSITORY_ROOT / "docs" / "evidence" / "interview-investigation-demo.md"
 
 
 def test_interview_demo_replays_detection_then_api_review_without_raw_logs() -> None:
@@ -40,14 +50,21 @@ def test_demo_api_returns_the_repeatable_investigation_replay() -> None:
     assert response.json()["summary"] == {"selectedCaseCount": 5, "apiReviewReplayCount": 1}
 
 
-def test_json_and_markdown_evidence_share_ids_and_redact_fixture_values() -> None:
+def test_committed_json_and_markdown_evidence_match_the_redacted_replay() -> None:
     report = run_interview_investigation_demo()
     markdown = render_interview_investigation_demo_markdown(report)
+    json_golden = JSON_GOLDEN.read_text(encoding="utf-8")
+    markdown_golden = MARKDOWN_GOLDEN.read_text(encoding="utf-8")
 
     anomaly_ids = [item["anomalyId"] for item in report["cases"] if item["anomalyId"]]
     assert anomaly_ids
-    assert all(anomaly_id in markdown for anomaly_id in anomaly_ids)
-    combined = f"{report}\n{markdown}"
+    assert json.loads(json_golden) == report
+    assert markdown_golden == markdown
+    assert all(anomaly_id in markdown_golden for anomaly_id in anomaly_ids)
+    assert json_golden.endswith("\n") and not json_golden.endswith("\n\n")
+    assert markdown_golden.endswith("\n") and not markdown_golden.endswith("\n\n")
+
+    combined = f"{json_golden}\n{markdown_golden}"
     for sensitive_value in ("demo.user.a", "demo.user.b", "demo.user.c", "demo.user.d", "203.0.113.42"):
         assert sensitive_value not in combined
     assert "raw_log" not in combined

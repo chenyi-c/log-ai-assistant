@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import subprocess
@@ -8,7 +9,6 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time as day_time, timedelta, timezone
 from pathlib import Path
-from threading import Lock
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
@@ -43,8 +43,6 @@ WATERMARK_TASKS = {
     "data_quality_reconcile",
     "daily_report_generate",
 }
-_WINDOWS_LOCKS: dict[str, Lock] = {}
-_WINDOWS_LOCKS_GUARD = Lock()
 
 
 class TaskNeedsReview(RuntimeError):
@@ -470,9 +468,12 @@ class OperationsRunner:
         self.config.lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = self.config.lock_dir / f"{idempotency_key}.lock"
         if fcntl is None:
-            lock_path.touch(exist_ok=True)
-            with _windows_lock(lock_path):
-                yield
+            with lock_path.open("a+b") as handle:
+                _lock_windows_file(handle)
+                try:
+                    yield
+                finally:
+                    _unlock_windows_file(handle)
             return
         with lock_path.open("a+b") as handle:
             _lock_file(handle)
@@ -490,14 +491,29 @@ def _unlock_file(handle: Any) -> None:
     getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_UN"))
 
 
-@contextmanager
-def _windows_lock(lock_path: Path):
-    """Keep local Windows demos single-process without changing Docker locking."""
-    key = str(lock_path.resolve()).casefold()
-    with _WINDOWS_LOCKS_GUARD:
-        lock = _WINDOWS_LOCKS.setdefault(key, Lock())
-    with lock:
-        yield
+def _lock_windows_file(handle: Any) -> None:
+    import msvcrt
+
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"\0")
+        handle.flush()
+    while True:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError as exc:
+            if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLOCK}:
+                raise
+            time.sleep(0.05)
+
+
+def _unlock_windows_file(handle: Any) -> None:
+    import msvcrt
+
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 def _timezone(name: str):
