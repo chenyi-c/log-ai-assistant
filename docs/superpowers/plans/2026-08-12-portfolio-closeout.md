@@ -88,7 +88,7 @@ Routes remain in `app.py`; the extracted module receives explicit inputs and ret
 
 **Step 3: Re-run API regressions**
 
-Run: `$env:PYTHONPATH='.'; pytest -q tests/test_investigation_support.py tests/test_api.py`
+Run: `$env:PYTHONPATH='.'; pytest -q tests/test_investigation_support.py tests/test_alert_detail_api.py tests/test_alert_analyze_api.py tests/test_anomaly_investigation_api.py`
 
 Expected: PASS with unchanged response contracts.
 
@@ -141,7 +141,7 @@ Expected: Markdown and JSON contain the same correlation ID, rule evidence, mode
 
 Assert JSON/Markdown share the same identifiers and that configured secrets or raw sensitive values do not appear.
 
-Run: `$env:PYTHONPATH='.'; pytest -q tests/test_evidence_demo.py`
+Run: `$env:PYTHONPATH='.'; pytest -q tests/test_interview_investigation_demo.py tests/test_evidence_demo_brief.py`
 
 Expected: PASS.
 
