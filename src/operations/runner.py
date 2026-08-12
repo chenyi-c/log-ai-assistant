@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import fcntl
+import errno
 import hashlib
-import json
+import importlib
 import os
 import subprocess
 import time
@@ -10,8 +10,13 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time as day_time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, cast
 from zoneinfo import ZoneInfo
+
+try:  # Linux containers use POSIX advisory locks.
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - exercised by Windows local runs.
+    fcntl = None  # type: ignore[assignment]
 
 from src.config import PROJECT_ROOT
 from src.operations.acceptance import evaluate_scenarios
@@ -140,7 +145,7 @@ class OperationsRunner:
 
     def run_scheduler_forever(self) -> None:
         while True:
-            local_now = self.clock().astimezone(ZoneInfo(self.config.timezone_name))
+            local_now = self.clock().astimezone(_timezone(self.config.timezone_name))
             target = local_now.date() - timedelta(days=1)
             for task_name in (
                 "daily_feature_aggregate",
@@ -154,7 +159,7 @@ class OperationsRunner:
             self.sleep(self.config.scheduler_interval_seconds)
 
     def default_target_date(self, task_name: str) -> date:
-        local_now = self.clock().astimezone(ZoneInfo(self.config.timezone_name))
+        local_now = self.clock().astimezone(_timezone(self.config.timezone_name))
         if task_name in WATERMARK_TASKS:
             return local_now.date() - timedelta(days=1)
         return local_now.date()
@@ -288,14 +293,18 @@ class OperationsRunner:
             "notification_deliver": self._notifications,
         }[task_name]
 
-    def _daily_feature(self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
+    def _daily_feature(
+        self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         count = aggregate_daily_features(self.storage, target_date)
         return {"table": "ueba_user_daily_features", "feature_date": target_date.isoformat(), "row_count": count}
 
     def _baseline(self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
         baselines = build_and_store_baselines(self.storage)
         if not baselines:
-            raise TaskNeedsReview("baseline_training_data_missing", "no daily features were available for baseline training")
+            raise TaskNeedsReview(
+                "baseline_training_data_missing", "no daily features were available for baseline training"
+            )
         unique_users = len({(item.tenant_id, item.user_id) for item in baselines})
         return {
             "table": "ueba_user_baseline",
@@ -315,12 +324,23 @@ class OperationsRunner:
         if not metrics:
             raise TaskNeedsReview("quality_manifest_missing", "no manifest rows matched the target date")
         blocking = _quality_blockers(metrics, thresholds)
-        output = {"table": "data_quality_metrics", "metric_count": len(metrics), "reconciliation": report, "blocking": blocking}
+        output = {
+            "table": "data_quality_metrics",
+            "metric_count": len(metrics),
+            "reconciliation": report,
+            "blocking": blocking,
+        }
         if blocking:
-            raise TaskNeedsReview("data_quality_gate_failed", "data quality contains unexplained or threshold-breaking differences", output)
+            raise TaskNeedsReview(
+                "data_quality_gate_failed",
+                "data quality contains unexplained or threshold-breaking differences",
+                output,
+            )
         return output
 
-    def _daily_report(self, tenant_id: str, target_date: date, run_id: str, watermark: dict[str, Any]) -> dict[str, Any]:
+    def _daily_report(
+        self, tenant_id: str, target_date: date, run_id: str, watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         existing, _ = self.storage.list_daily_reports(
             tenant_id=tenant_id,
             start_date=target_date,
@@ -360,7 +380,9 @@ class OperationsRunner:
             )
         return {"table": "acceptance_reports", "report_id": report.report_id, "metric_count": len(metrics)}
 
-    def _notifications(self, _tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
+    def _notifications(
+        self, _tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         now = self.clock()
         if target_date == now.date():
             end = now
@@ -368,9 +390,7 @@ class OperationsRunner:
         else:
             start = datetime.combine(target_date, day_time.min, tzinfo=timezone.utc)
             end = start + timedelta(days=1)
-        high, _ = self.storage.list_anomalies(
-            risk_level="high", start_time=start, end_time=end, limit=1000, offset=0
-        )
+        high, _ = self.storage.list_anomalies(risk_level="high", start_time=start, end_time=end, limit=1000, offset=0)
         critical, _ = self.storage.list_anomalies(
             risk_level="critical", start_time=start, end_time=end, limit=1000, offset=0
         )
@@ -385,7 +405,7 @@ class OperationsRunner:
 
     def _watermark(self, tenant_id: str, target_date: date) -> dict[str, Any]:
         values = dict(self.storage.data_watermark(tenant_id=tenant_id, target_date=target_date))
-        local_zone = ZoneInfo(self.config.timezone_name)
+        local_zone = _timezone(self.config.timezone_name)
         target_end_local = datetime.combine(target_date + timedelta(days=1), day_time.min, tzinfo=local_zone)
         target_end_utc = target_end_local.astimezone(timezone.utc)
         ready_after = target_end_utc + timedelta(minutes=self.config.watermark_grace_minutes)
@@ -448,12 +468,69 @@ class OperationsRunner:
     def _task_lock(self, idempotency_key: str):
         self.config.lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = self.config.lock_dir / f"{idempotency_key}.lock"
-        with lock_path.open("a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        if fcntl is None:
+            with lock_path.open("a+b") as handle:
+                _lock_windows_file(handle)
+                try:
+                    yield
+                finally:
+                    _unlock_windows_file(handle)
+            return
+        with lock_path.open("a+b") as handle:
+            _lock_file(handle)
             try:
                 yield
             finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _unlock_file(handle)
+
+
+def _lock_file(handle: Any) -> None:
+    getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_EX"))
+
+
+def _unlock_file(handle: Any) -> None:
+    getattr(fcntl, "flock")(handle.fileno(), getattr(fcntl, "LOCK_UN"))
+
+
+class _MsvcrtLocking(Protocol):
+    LK_NBLCK: int
+    LK_UNLCK: int
+
+    def locking(self, file_descriptor: int, mode: int, byte_count: int) -> None: ...
+
+
+def _load_msvcrt() -> _MsvcrtLocking:
+    return cast(_MsvcrtLocking, importlib.import_module("msvcrt"))
+
+
+def _lock_windows_file(handle: Any) -> None:
+    msvcrt = _load_msvcrt()
+
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"\0")
+        handle.flush()
+    while True:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError as exc:
+            if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLOCK}:
+                raise
+            time.sleep(0.05)
+
+
+def _unlock_windows_file(handle: Any) -> None:
+    msvcrt = _load_msvcrt()
+
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def _timezone(name: str):
+    """Avoid an unnecessary tzdata dependency for the universal UTC setting."""
+    return timezone.utc if name.upper() == "UTC" else ZoneInfo(name)
 
 
 def _quality_blockers(metrics: list[Any], thresholds: dict[str, Any]) -> list[dict[str, Any]]:

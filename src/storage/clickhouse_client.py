@@ -1,11 +1,25 @@
 from __future__ import annotations
 
-import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from src.config import settings
+from src.storage.clickhouse_helpers import (
+    assert_allowed_values as _assert_allowed_values,
+    build_filters as _build_filters,
+    coerce_date as _coerce_date,
+    columns_sql as _columns_sql,
+    json_loads as _json_loads,
+    model_payload as _model_payload,
+    normalize_limit as _normalize_limit,
+    pagination_parameters as _pagination_parameters,
+    parse_select_aliases as _parse_select_aliases,
+    row_from_payload as _row_from_payload,
+    split_non_empty_lines as _split_non_empty_lines,
+    string_list as _string_list,
+    where as _where,
+)
 from src.schemas import (
     AIFeedback,
     AcceptanceMetric,
@@ -379,7 +393,13 @@ REASON_CODE_FEEDBACK_STATS_COLUMNS: tuple[str, ...] = (
     "last_updated",
 )
 
-DAILY_FEATURES_JSON_FIELDS: set[str] = {"profile_metrics", "common_src_ips", "common_ip_prefixes", "common_hosts", "common_actions"}
+DAILY_FEATURES_JSON_FIELDS: set[str] = {
+    "profile_metrics",
+    "common_src_ips",
+    "common_ip_prefixes",
+    "common_hosts",
+    "common_actions",
+}
 AI_JUDGEMENT_JSON_FIELDS = {"feedback_suggestions", "raw_response"}
 BASELINE_OVERRIDE_JSON_FIELDS = {"override_value"}
 DAILY_REPORT_JSON_FIELDS = set()
@@ -620,6 +640,21 @@ class ClickHouseStorage:
         )
         return _normalize_anomaly_row(items[0]) if items else None
 
+    def existing_anomaly_ids(self, event_ids: Sequence[str]) -> set[str]:
+        """Return persisted anomaly IDs so detector restarts remain idempotent."""
+
+        if not event_ids:
+            return set()
+        rows = self._select_dicts(
+            """
+            SELECT DISTINCT event_id
+            FROM anomaly_events
+            WHERE event_id IN {event_ids:Array(String)}
+            """,
+            {"event_ids": list(event_ids)},
+        )
+        return {str(row["event_id"]) for row in rows}
+
     def insert_anomalies(self, anomalies: Sequence[AnomalyEvent | dict[str, Any]]) -> None:
         rows = [
             _row_from_payload(
@@ -856,11 +891,7 @@ class ClickHouseStorage:
             limit=1000,
             offset=0,
         )
-        overrides = [
-            item
-            for item in overrides
-            if str(item.get("user_id") or "") in {"", user_id}
-        ]
+        overrides = [item for item in overrides if str(item.get("user_id") or "") in {"", user_id}]
         from src.ueba.effective import resolve_effective_baseline
 
         return resolve_effective_baseline(
@@ -1112,10 +1143,7 @@ class ClickHouseStorage:
         self.client.insert("daily_security_reports", [row], column_names=list(DAILY_REPORT_COLUMNS))
 
     def insert_data_quality_metrics(self, metrics: Sequence[DataQualityMetric | dict[str, Any]]) -> None:
-        rows = [
-            _row_from_payload(_model_payload(metric), DATA_QUALITY_COLUMNS)
-            for metric in metrics
-        ]
+        rows = [_row_from_payload(_model_payload(metric), DATA_QUALITY_COLUMNS) for metric in metrics]
         if rows:
             self.client.insert("data_quality_metrics", rows, column_names=list(DATA_QUALITY_COLUMNS))
 
@@ -1125,9 +1153,7 @@ class ClickHouseStorage:
         metric_date: date | None = None,
         tenant_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        filters, parameters = _build_filters(
-            equals={"metric_date": metric_date, "tenant_id": tenant_id}
-        )
+        filters, parameters = _build_filters(equals={"metric_date": metric_date, "tenant_id": tenant_id})
         return self._select_dicts(
             f"""
             SELECT {_columns_sql(DATA_QUALITY_COLUMNS)}
@@ -1266,14 +1292,18 @@ class ClickHouseStorage:
             """,
             {"tenant_id": tenant_id, "target_date": target_date},
         )
-        return rows[0] if rows else {
-            "security_logs_count": 0,
-            "distinct_event_count": 0,
-            "first_event_time": None,
-            "latest_event_time": None,
-            "latest_ingest_time": None,
-            "parse_error_count": 0,
-        }
+        return (
+            rows[0]
+            if rows
+            else {
+                "security_logs_count": 0,
+                "distinct_event_count": 0,
+                "first_event_time": None,
+                "latest_event_time": None,
+                "latest_ingest_time": None,
+                "parse_error_count": 0,
+            }
+        )
 
     def insert_acceptance_report(
         self,
@@ -1562,15 +1592,19 @@ class ClickHouseStorage:
                 sql.format(final_clause=""),
                 {"event_ids": list(event_ids)},
             )
-        return rows[0] if rows else {
-            "security_logs_count": 0,
-            "missing_event_time_count": 0,
-            "missing_user_id_count": 0,
-            "missing_src_ip_count": 0,
-            "missing_action_count": 0,
-            "missing_result_count": 0,
-            "parse_error_count": 0,
-        }
+        return (
+            rows[0]
+            if rows
+            else {
+                "security_logs_count": 0,
+                "missing_event_time_count": 0,
+                "missing_user_id_count": 0,
+                "missing_src_ip_count": 0,
+                "missing_action_count": 0,
+                "missing_result_count": 0,
+                "parse_error_count": 0,
+            }
+        )
 
     def security_logs_daily_counts(
         self,
@@ -1891,9 +1925,7 @@ class ClickHouseStorage:
             end_time=end_time,
         )
         parameters |= {f"anom_{key}": value for key, value in anomaly_parameters.items()}
-        anomaly_where = _where(
-            [clause.replace("{", "{anom_") for clause in anomaly_filters]
-        )
+        anomaly_where = _where([clause.replace("{", "{anom_") for clause in anomaly_filters])
         # baseline coverage and the latest report are scoped by tenant only; they
         # are not bounded by the event_time window used for logs/anomalies.
         tenant_clause = "WHERE tenant_id = {tenant_id:String}" if tenant_id is not None else ""
@@ -1923,16 +1955,20 @@ class ClickHouseStorage:
             """,
             parameters,
         )
-        return row[0] if row else {
-            "log_count": 0,
-            "latest_log_ingest_time": None,
-            "anomaly_count": 0,
-            "high_risk_count": 0,
-            "critical_count": 0,
-            "ai_pending_count": 0,
-            "baseline_user_count": 0,
-            "latest_report_date": None,
-        }
+        return (
+            row[0]
+            if row
+            else {
+                "log_count": 0,
+                "latest_log_ingest_time": None,
+                "anomaly_count": 0,
+                "high_risk_count": 0,
+                "critical_count": 0,
+                "ai_pending_count": 0,
+                "baseline_user_count": 0,
+                "latest_report_date": None,
+            }
+        )
 
     def _select_scalar(
         self,
@@ -2070,63 +2106,6 @@ def _build_daily_report_filters(
     return filters, parameters
 
 
-def _build_filters(
-    *,
-    equals: dict[str, Any],
-    time_field: str | None = None,
-    start_time: datetime | None = None,
-    end_time: datetime | None = None,
-) -> tuple[list[str], dict[str, Any]]:
-    filters: list[str] = []
-    parameters: dict[str, Any] = {}
-    for field, value in equals.items():
-        if value is None:
-            continue
-        filters.append(f"{field} = {{{field}:{_clickhouse_type(value)}}}")
-        parameters[field] = value
-    if time_field and (start_time or end_time):
-        if start_time:
-            filters.append(f"{time_field} >= {{start_time:DateTime64(3)}}")
-            parameters["start_time"] = start_time
-        if end_time:
-            filters.append(f"{time_field} <= {{end_time:DateTime64(3)}}")
-            parameters["end_time"] = end_time
-    return filters, parameters
-
-
-def _where(filters: Sequence[str]) -> str:
-    return f"WHERE {' AND '.join(filters)}" if filters else ""
-
-
-def _columns_sql(columns: Sequence[str], table_alias: str | None = None) -> str:
-    if not table_alias:
-        return ", ".join(columns)
-    return ", ".join(f"{table_alias}.{column} AS {column}" for column in columns)
-
-
-def _pagination_parameters(*, limit: int, offset: int) -> dict[str, int]:
-    return {
-        "limit": _normalize_limit(limit),
-        "offset": max(0, int(offset)),
-    }
-
-
-def _normalize_limit(limit: int) -> int:
-    return max(1, int(limit))
-
-
-def _clickhouse_type(value: Any) -> str:
-    # 一处细节：datetime 需要写在 date 的前面，因为 datetime 是 date 的子类
-    if isinstance(value, datetime):
-        return "DateTime64(3)"
-    if isinstance(value, date):
-        return "Date"
-    if isinstance(value, int):
-        return "Int64"
-    if isinstance(value, float):
-        return "Float64"
-    return "String"
-
 # 调用 json_loads 把日志的 json 字段转化为 Python 对象
 def _normalize_log_row(row: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
@@ -2164,12 +2143,12 @@ def _normalize_baseline_override_row(row: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(row)
     normalized["override_value"] = _json_loads(normalized.get("override_value"), default={})
     effective_to = normalized.get("effective_to")
-    now = datetime.now(effective_to.tzinfo) if isinstance(effective_to, datetime) and effective_to.tzinfo else datetime.now()
-    if (
-        normalized.get("status") == "active"
-        and isinstance(effective_to, datetime)
-        and effective_to < now
-    ):
+    now = (
+        datetime.now(effective_to.tzinfo)
+        if isinstance(effective_to, datetime) and effective_to.tzinfo
+        else datetime.now()
+    )
+    if normalized.get("status") == "active" and isinstance(effective_to, datetime) and effective_to < now:
         normalized["status"] = "expired"
     for field in ("source_feedback_id", "reviewed_by"):
         if normalized.get(field) == "":
@@ -2326,12 +2305,12 @@ def _daily_report_payload(payload: dict[str, Any], *, tenant_id: str) -> dict[st
     high_risk_count = int(payload.get("high_risk_count") or 0)
     typical_alerts = payload.get("typical_alerts") if isinstance(payload.get("typical_alerts"), list) else []
     key_events = [
-        str(item.get("event_id"))
-        for item in typical_alerts
-        if isinstance(item, dict) and item.get("event_id")
+        str(item.get("event_id")) for item in typical_alerts if isinstance(item, dict) and item.get("event_id")
     ]
     recommendation = payload.get("recommendation", "")
-    recommended_actions = recommendation if isinstance(recommendation, list) else _split_non_empty_lines(str(recommendation))
+    recommended_actions = (
+        recommendation if isinstance(recommendation, list) else _split_non_empty_lines(str(recommendation))
+    )
     return {
         "report_date": report_date,
         "tenant_id": tenant_id,
@@ -2417,11 +2396,17 @@ def _baseline_feature_value(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         numeric_fields = {}
         for src_key, tgt_key in (
-            ("mean_value", "mean_value"), ("std_value", "std_value"),
-            ("p50_value", "p50_value"), ("p95_value", "p95_value"), ("p99_value", "p99_value"),
+            ("mean_value", "mean_value"),
+            ("std_value", "std_value"),
+            ("p50_value", "p50_value"),
+            ("p95_value", "p95_value"),
+            ("p99_value", "p99_value"),
             # Also accept short key names used by the baseline builder
-            ("mean", "mean_value"), ("std", "std_value"),
-            ("p50", "p50_value"), ("p95", "p95_value"), ("p99", "p99_value"),
+            ("mean", "mean_value"),
+            ("std", "std_value"),
+            ("p50", "p50_value"),
+            ("p95", "p95_value"),
+            ("p99", "p99_value"),
         ):
             raw = value.get(src_key)
             if isinstance(raw, (int, float)):
@@ -2436,114 +2421,3 @@ def _baseline_feature_value(value: Any) -> dict[str, Any]:
             }
         return {"common_values": [], "value_histogram": value}
     return {"common_values": [str(value)] if value not in (None, "") else [], "value_histogram": {}}
-
-
-def _coerce_date(value: Any) -> date:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    return date.fromisoformat(str(value))
-
-
-def _split_non_empty_lines(value: str) -> list[str]:
-    return [line.strip() for line in value.splitlines() if line.strip()]
-
-
-# 把 json 字符串转化成字典或者列表
-def _json_loads(value: Any, *, default: Any) -> Any:
-    if value is None or value == "":
-        return default
-    if isinstance(value, (dict, list)):
-        return value
-    try:
-        return json.loads(str(value))
-    except (TypeError, ValueError):
-        return default
-
-
-# 和 loads 相反，python 对象转化为 json 字符串
-def _json_dumps(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    return json.dumps(
-        value if value is not None else {},
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=_json_default,
-    )
-
-
-def _json_default(value: Any) -> Any:
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json")
-    return str(value)
-
-
-# 把 string 和 Iterable 转化为列表
-def _string_list(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [value] if value else []
-    if isinstance(value, Iterable):
-        return [str(item) for item in value if item is not None]
-    return []
-
-
-# 把 Pydantic 对象转化为字典
-def _model_payload(value: Any) -> dict[str, Any]:
-    if hasattr(value, "model_dump"):
-        return value.model_dump(mode="python")
-    return dict(value)
-
-
-# 把字典转化为可以放进数据库对应列的数据结构
-def _row_from_payload(
-    payload: dict[str, Any],
-    columns: Sequence[str],
-    *,
-    json_fields: set[str] | None = None,
-    defaults: dict[str, Any] | None = None,
-) -> list[Any]:
-    resolved_defaults = defaults or {}
-    resolved_json_fields = json_fields or set()
-    row: list[Any] = []
-    for column in columns:
-        value = payload.get(column, resolved_defaults.get(column))
-        if value is None and column in resolved_defaults:
-            value = resolved_defaults[column]
-        if column in resolved_json_fields:
-            value = _json_dumps(value)
-        if isinstance(value, bool):
-            value = int(value)
-        row.append(value)
-    return row
-
-
-# 检查传入的内容是否在允许范围内（用 set 的差实现）
-def _assert_allowed_values(values: Sequence[str], allowed: Iterable[str], label: str) -> None:
-    allowed_set = set(allowed)
-    invalid = sorted(set(values) - allowed_set)
-    if invalid:
-        raise ValueError(f"Unsupported {label}: {', '.join(invalid)}")
-
-
-# 从 SELECT 中得到列名字段
-def _parse_select_aliases(sql: str) -> list[str]:
-    upper_sql = sql.upper()
-    if "SELECT" not in upper_sql or "FROM" not in upper_sql:
-        return []
-    # 字符串切片，取 SELECT 和 FROM 之间的字段（本质[:]语法）
-    select_sql = sql[upper_sql.index("SELECT") + len("SELECT"):upper_sql.index("FROM")]
-    aliases: list[str] = []
-    for raw_part in select_sql.split(","):
-        part = raw_part.strip()
-        if " AS " in part.upper():
-            # 从右边第一个空格切，取右数第一个字段（即 AS 右边的字段，别名）
-            aliases.append(part.rsplit(" ", 1)[-1])
-        # 排除诸如 max(count) 这类字段
-        elif part and "(" not in part:
-            # 比如 b.tenant_id 执行后得到 tenant_id
-            aliases.append(part.split(".")[-1])
-    return aliases

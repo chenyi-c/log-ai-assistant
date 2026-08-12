@@ -277,9 +277,9 @@ def test_governance_openapi_exposes_override_and_feedback_review_contracts() -> 
     assert paths["/api/v1/baselines/overrides"]["get"]["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/BaselineOverrideListResponse"
     }
-    assert paths["/api/v1/baselines/overrides"]["post"]["responses"]["200"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/BaselineOverride"
-    }
-    assert paths["/api/v1/feedback/{feedback_id}/review"]["post"]["responses"]["200"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/FeedbackReviewResponse"
-    }
+    assert paths["/api/v1/baselines/overrides"]["post"]["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ] == {"$ref": "#/components/schemas/BaselineOverride"}
+    assert paths["/api/v1/feedback/{feedback_id}/review"]["post"]["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ] == {"$ref": "#/components/schemas/FeedbackReviewResponse"}

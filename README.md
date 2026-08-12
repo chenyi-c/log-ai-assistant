@@ -65,6 +65,117 @@ docker compose run --rm operations-runner run-once --task scenario_evaluate
 
 这段工作让我完整参与了一个从日志流处理到安全异常事件建模的后端工程链路，也锻炼了我把规则检测、行为基线、风险评分和可解释证据包结合到实际系统中的能力。
 
+## 可复现异常检测演示
+
+### 本地证据摘要
+
+在不配置模型 Key、不连接 Kafka 或 ClickHouse 的情况下，可以输出一份固定合成场景的简短证据摘要：
+
+```bash
+python -m scripts.run_evidence_demo_brief
+```
+
+同一内容也可通过 `GET /api/v1/demo/evidence-brief` 获取。它只说明合成场景、规则覆盖、正常对照和一次 API 审核回放；不读取真实日志、不调用模型，也不代表生产检测准确率或 SOC 研判结论。
+
+我负责的 A 模块可以独立用一组固定、脱敏的场景复跑：
+
+```text
+安全日志样例 -> RuleEngine -> AnomalyEvent -> FastAPI GET /api/v1/anomalies
+```
+
+场景定义位于 `tests/fixtures/reproducible_anomaly_scenarios_v1.json`，仅使用虚拟账号、资源名与 TEST-NET 保留网段。场景覆盖：登录失败突增、凭证填充、高频 API 调用、敏感资源访问、新来源登录后敏感访问，以及两类正常行为对照。每项都声明输入序列、预期 `risk_level`、`reason_codes`、`evidence` 和 `related_event_ids`；测试会用真实 `RuleEngine` 生成 `AnomalyEvent`，再经 FastAPI 查询路由校验返回契约。
+
+运行最小演示：
+
+```bash
+docker compose run --rm tester pytest -q tests/test_reproducible_anomaly_scenarios.py
+```
+
+该测试是固定规则样例的回归验证，不代表模型准确率、真实企业数据效果或生产性能。完整系统启动后可通过以下接口查看已入库的异常事件：
+
+```bash
+curl http://localhost:8000/api/v1/health
+curl "http://localhost:8000/api/v1/anomalies?limit=20"
+```
+
+阶段 2 的场景验收、稳定 ID、增量读取、warmup 与去重验证见 `docs/13_detection_acceptance_report.md`。其中明确区分已验证的 A 模块行为与尚未进行的集群负载验证。
+
+### 3 分钟面试演示
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_anomaly_demo.py
+```
+
+该命令不读取线上日志、不调用外部 API，只输出固定脱敏场景的 JSON 验收结果：场景名、输入数量、规则原因码、风险等级、稳定 `anomaly_id`、去重结果，以及 FastAPI 查询模型返回的证据。重点可查看登录失败突增、凭证填充、高频 API、正常对照和重复异常事件去重。它只展示我负责的异常检测 A 模块，不代表团队全链路由我独立实现。
+
+面试演示步骤见 [`docs/14_interview_demo.md`](docs/14_interview_demo.md)，最近一次合成场景的终端证据见 [`docs/evidence/anomaly-demo-v1.md`](docs/evidence/anomaly-demo-v1.md)。
+
+### 60 秒面试讲解
+
+1. 固定的脱敏安全日志先进入我负责的 `RuleEngine`，再由 `AnomalyEventBuilder` 生成异常事件；我会展示登录失败突增或凭证填充的输入与命中原因码。
+2. 事件带有由输入与规则派生的稳定 `anomaly_id`、`evidence` 和 `related_event_ids`；worker 会用这些 ID 对重放事件去重，API 返回同一份可解释证据。
+3. 演示中可用人工复核接口把某个异常标记为 `pending`、`confirmed` 或 `false_positive` 并附备注。该接口是无账号、进程内的演示实现，重启 API 后记录清空；Kafka、Flink、ClickHouse 和前端属于团队全链路，并非我个人独立开发。
+
+### 演示级人工复核
+
+对演示中得到的任一 `anomaly_id`，可记录和查询一条人工复核标签：
+
+```bash
+curl -X PUT "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"confirmed","reviewer_note":"Synthetic demo review.","reviewer":"demo-analyst"}'
+curl "http://localhost:8000/api/v1/anomalies/<anomaly_id>/review"
+```
+
+这是面试演示用的进程内记录，不替代现有 ClickHouse `ai_feedback` 治理表，也没有账号、权限或跨重启持久化能力。
+
+复核记录会从已有异常事件复制 `anomaly_id`、`reason_codes` 和结构化 `evidence` 快照；`raw_log`、`message` 等原始文本字段会在写入演示复核记录前移除。
+
+### 3 分钟安全研判演示
+
+`Investigation Pack` 把我负责的异常事件、证据、去重和演示级人工复核组合为一条可演示闭环，不读取真实日志或外部 API：
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_investigation_pack.py --format markdown
+```
+
+1. 输出先显示固定脱敏日志如何命中异常，及稳定 `anomaly_id` 和重复重放去重。
+2. 对 `failed-login-user-spike` 或 `credential-stuffing`，调用 `GET /api/v1/anomalies/<anomaly_id>/investigation` 查看脱敏证据、规则阈值、关联事件和人工维护的窄范围 ATT&CK 引用。
+3. 用 `PUT /api/v1/anomalies/<anomaly_id>/review` 标记 `confirmed` 或 `false_positive`，再查询研判接口查看复核状态。
+
+研判包是无账号、进程内的演示实现，复核记录不跨进程持久化；脱敏是演示输出保护，不能替代企业级权限、密钥管理或完整 SIEM/SOC 能力。最近一次真实终端输出见 [`docs/evidence/investigation-pack-v1.md`](docs/evidence/investigation-pack-v1.md)。开源参考、许可证与未复制声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
+### 一键面试回放与 API 集合
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_interview_investigation_demo.py --format markdown
+```
+
+该入口在同一进程内依次完成固定脱敏日志的规则检测、稳定 ID/去重检查、`GET /investigation` 查询以及一次 `pending -> confirmed` 的真实 FastAPI 复核回放。输出只保留规则命中、脱敏证据、ATT&CK 引用和复核状态；不读取线上日志或外部密钥。启动完整 API 后，可导入 [`postman/log-ai-investigation-demo.postman_collection.json`](postman/log-ai-investigation-demo.postman_collection.json) 来调用固定回放、研判查询和 `confirmed` / `false_positive` 复核。`anomalyId` 需要替换为已入库异常 ID；固定回放本身不把样例写入生产存储。
+
+最近一次本地脱敏证据提供 [Markdown](docs/evidence/interview-investigation-demo.md) 和 [JSON](docs/evidence/interview-investigation-demo.json) 两种格式；固定 `anomaly_id`、原因码和脱敏字段由回归测试交叉校验。CI 会生成并上传同类 JSON/Markdown evidence artifact。60 秒讲解：我负责的 Python A 模块把日志转为可解释异常事件；稳定 `anomaly_id` 用于幂等去重，证据和 ATT&CK 映射用于人工核查，最后通过演示级复核接口闭环。Kafka、Flink、ClickHouse 和前端仍是团队全链路，不宣称为我独立开发。该次证据在本地 Python fallback 中生成；Docker Desktop daemon 未运行，因此不宣称为 Docker-backed 结果。
+
+### 规则回归报告
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_rule_regression.py
+```
+
+该命令从同一份 10 条脱敏场景生成 JSON：规则类别、去标识化输入摘要、期望风险/原因码/证据、实际输出、期望命中数和通过状态。它是固定样例的规则回归约束，不是检测准确率或真实攻击检出率。
+
+### 统一回放评测
+
+```bash
+docker compose build tester
+docker compose run --rm tester python scripts/run_detection_evaluation.py
+```
+
+该入口把规则回归、稳定 `anomaly_id`、API 证据和逐场景重放去重组合为一份 JSON 报告。每个场景都含不包含原始日志正文的 `trace_id`、输入数、预期/实际规则、风险、异常 ID、原因码、证据、去重结果和通过状态。最近一次终端证据见 [`docs/evidence/detection-evaluation-v1.md`](docs/evidence/detection-evaluation-v1.md)。
+
 ## 当前主链路
 
 Filebeat -> Kafka -> Flink -> ClickHouse -> FastAPI -> React
@@ -168,5 +279,35 @@ docker compose --profile scale up --build
 ```bash
 docker compose run --rm tester
 ```
+
+## Engineering quality workflow
+
+The repository uses Docker as the source of truth for backend tests. Before opening a pull request, run:
+
+```bash
+docker compose run --rm tester
+ruff check src tests log-generator
+mypy
+cd frontend && npm ci && npm test -- --run && npm run build && npm audit --omit=dev
+```
+
+`ruff format --check src tests log-generator` is not yet a required gate: the current
+post-closeout baseline reports 5 remaining files that need a mechanical formatting
+pass. The Python files changed by this closeout have already been formatted with the
+locked Ruff version. Keep the remaining cleanup in a separate formatting-only change
+so behavior work remains reviewable; the required lint baseline is
+`ruff check src tests log-generator`.
+Python `pip-audit` remains visible in CI as an advisory, non-blocking step while
+the tracked dependency pins are upgraded and regression-tested separately; it is
+not presented as a passing release gate.
+
+To install the local commit checks, first install the development tools and then enable the hooks:
+
+```bash
+python -m pip install -r requirements/dev.txt
+pre-commit install
+```
+
+The CI workflow repeats these checks on pushes and pull requests. See [the engineering quality audit](docs/12_engineering_quality_audit.md) for the prioritized technical-debt register and [the changelog](CHANGELOG.md) for release history.
 
 Elasticsearch / Kibana 仅保留在 `legacy-es` profile 中，供旧代码兼容或迁移对照使用，不属于当前正式主链路。

@@ -1,0 +1,8 @@
+# Development-only quality tools. Runtime images use the split requirements
+# files directly and do not install this file.
+-r backend.txt
+-r test.txt
+mypy==1.14.1
+pip-audit==2.8.0
+pre-commit==3.8.0
+ruff==0.15.22

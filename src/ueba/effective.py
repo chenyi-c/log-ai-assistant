@@ -54,8 +54,7 @@ def select_periodic_baseline(
 ) -> dict[str, Any] | None:
     at = event_time or datetime.now(timezone.utc)
     by_period = {
-        (str(item.get("period_type") or "global"), str(item.get("period_key") or "all")): item
-        for item in baselines
+        (str(item.get("period_type") or "global"), str(item.get("period_key") or "all")): item for item in baselines
     }
     for period_type, period_key in period_candidates(at):
         item = by_period.get((period_type, period_key))
@@ -79,11 +78,7 @@ def resolve_effective_baseline(
     if selected is None:
         return None
 
-    applicable = [
-        item
-        for item in overrides
-        if _is_active(item, at) and _matches_selected_period(item, selected)
-    ]
+    applicable = [item for item in overrides if _is_active(item, at) and _matches_selected_period(item, selected)]
     applicable.sort(key=_override_sort_key)
 
     applied_ids: list[str] = []

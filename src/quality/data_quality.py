@@ -162,14 +162,8 @@ def verify_manifest_event_ids(
         }
 
     logs = storage.list_logs_by_event_ids(sampled_event_ids)
-    found_event_ids = {
-        str(log.get("event_id"))
-        for log in logs
-        if isinstance(log, dict) and log.get("event_id")
-    }
-    missing_event_ids = [
-        event_id for event_id in sampled_event_ids if event_id not in found_event_ids
-    ]
+    found_event_ids = {str(log.get("event_id")) for log in logs if isinstance(log, dict) and log.get("event_id")}
+    missing_event_ids = [event_id for event_id in sampled_event_ids if event_id not in found_event_ids]
     return {
         "sampled_count": len(sampled_event_ids),
         "found_count": len(found_event_ids),
@@ -193,11 +187,7 @@ def _group_traceability_rate(storage: Any, items: list[dict[str, Any]]) -> float
     if not sampled:
         return 1.0
     logs = lookup(sampled)
-    found = {
-        str(log.get("event_id"))
-        for log in logs
-        if isinstance(log, dict) and log.get("event_id")
-    }
+    found = {str(log.get("event_id")) for log in logs if isinstance(log, dict) and log.get("event_id")}
     traced = sum(1 for event_id in sampled if event_id in found)
     return round(traced / len(sampled), 6)
 

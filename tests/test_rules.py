@@ -36,18 +36,14 @@ def build_log(idx: int, **kwargs) -> NormalizedLog:
 def test_bruteforce_ip_rule_triggered() -> None:
     """同一个 IP 多次登录失败时，应触发暴力破解类规则。"""
 
-    logs = [build_log(i, src_ip="8.8.8.8", user_id=f"u{i%2}") for i in range(10)]
+    logs = [build_log(i, src_ip="8.8.8.8", user_id=f"u{i % 2}") for i in range(10)]
     alerts = detect_batch(logs)
     rules = [rule for a in alerts for rule in a.rule_hits]
     assert "同一src_ip在5分钟内登录失败超阈值" in rules
     assert any("failed_login_spike" in alert.reason_codes for alert in alerts)
     assert all("rule_score" not in alert.risk_components for alert in alerts)
     assert all("rule_strength" in alert.risk_components for alert in alerts)
-    ip_spike = next(
-        alert
-        for alert in alerts
-        if "同一src_ip在5分钟内登录失败超阈值" in alert.rule_hits
-    )
+    ip_spike = next(alert for alert in alerts if "同一src_ip在5分钟内登录失败超阈值" in alert.rule_hits)
     assert ip_spike.attack_type == "brute_force"
     assert ip_spike.risk_level == "high"
     assert ip_spike.ai_status == "pending"
@@ -75,11 +71,7 @@ def test_new_ip_then_sensitive_access() -> None:
     alerts = detect_batch([login, sensitive])
     rules = [rule for a in alerts for rule in a.rule_hits]
     assert "新IP登录后短时间访问敏感资源" in rules
-    correlated = [
-        alert
-        for alert in alerts
-        if "new_source_then_sensitive_access" in alert.reason_codes
-    ]
+    correlated = [alert for alert in alerts if "new_source_then_sensitive_access" in alert.reason_codes]
     assert correlated
     assert correlated[0].attack_type == "account_takeover"
     assert correlated[0].risk_components["event_correlation"] > 0
@@ -116,13 +108,9 @@ def test_off_hours_login_only_never_reaches_critical() -> None:
         assert "new_source_then_sensitive_access" not in alert.reason_codes
 
         # 风险分严禁突破 critical（≥ 76）
-        assert alert.risk_score < 76, (
-            f"非工作时间单纯登录不应达到 critical，实际得分 {alert.risk_score}"
-        )
+        assert alert.risk_score < 76, f"非工作时间单纯登录不应达到 critical，实际得分 {alert.risk_score}"
         # 同时也不应达到 high（≥ 51）——单独 rare_login_hour 不足以触发高风险
-        assert alert.risk_score < 51, (
-            f"非工作时间单纯登录不应达到 high，实际得分 {alert.risk_score}"
-        )
+        assert alert.risk_score < 51, f"非工作时间单纯登录不应达到 high，实际得分 {alert.risk_score}"
         assert alert.risk_level != "critical"
 
 
@@ -312,8 +300,6 @@ def test_insufficient_history_deviation_does_not_overestimate_new_source_risk() 
     alerts = RuleEngine().evaluate_log(log, context)
 
     new_source = next(alert for alert in alerts if "new_source_ip" in alert.reason_codes)
-    assert "insufficient_history" in [
-        item["deviation_type"] for item in new_source.baseline_deviations
-    ]
+    assert "insufficient_history" in [item["deviation_type"] for item in new_source.baseline_deviations]
     assert new_source.risk_level == "medium"
     assert new_source.ai_status == "not_required"

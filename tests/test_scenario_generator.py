@@ -73,7 +73,5 @@ def test_write_records_splits_by_source_and_writes_manifest(tmp_path: Path) -> N
     raw_lines = (tmp_path / "api.log").read_text(encoding="utf-8").splitlines()
     manifest_rows = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
     assert len(raw_lines) == 3
-    assert [json.loads(line)["event_id"] for line in raw_lines] == [
-        row["event_id"] for row in manifest_rows
-    ]
+    assert [json.loads(line)["event_id"] for line in raw_lines] == [row["event_id"] for row in manifest_rows]
     assert all(row["raw_size_bytes"] > 0 for row in manifest_rows)

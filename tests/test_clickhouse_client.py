@@ -115,6 +115,18 @@ def test_get_log_returns_none_when_event_is_missing() -> None:
     assert storage.get_log("missing") is None
 
 
+def test_existing_anomaly_ids_queries_only_requested_ids() -> None:
+    fake = FakeClickHouseClient([QueryResult([("anom-1",), ("anom-3",)], ["event_id"])])
+    storage = ClickHouseStorage(client=fake)
+
+    existing = storage.existing_anomaly_ids(["anom-1", "anom-2", "anom-3"])
+
+    assert existing == {"anom-1", "anom-3"}
+    assert "FROM anomaly_events" in fake.queries[0]["sql"]
+    assert "event_id IN {event_ids:Array(String)}" in fake.queries[0]["sql"]
+    assert fake.queries[0]["parameters"] == {"event_ids": ["anom-1", "anom-2", "anom-3"]}
+
+
 def test_aggregate_logs_uses_allowed_groups_and_metrics() -> None:
     fake = FakeClickHouseClient(
         [
@@ -517,7 +529,10 @@ def test_get_stats_overview_queries_log_and_anomaly_counts() -> None:
     assert "SELECT count() FROM security_logs WHERE tenant_id = {tenant_id:String}" in fake.queries[0]["sql"]
     assert "SELECT count() FROM anomaly_events WHERE tenant_id = {anom_tenant_id:String}" in fake.queries[0]["sql"]
     assert "ai_status = 'pending'" in fake.queries[0]["sql"]
-    assert "SELECT uniqExact(user_id) FROM ueba_user_baseline WHERE tenant_id = {tenant_id:String}" in fake.queries[0]["sql"]
+    assert (
+        "SELECT uniqExact(user_id) FROM ueba_user_baseline WHERE tenant_id = {tenant_id:String}"
+        in fake.queries[0]["sql"]
+    )
     assert fake.queries[0]["parameters"] == {
         "tenant_id": "default",
         "anom_tenant_id": "default",

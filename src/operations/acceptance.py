@@ -70,33 +70,61 @@ def evaluate_scenarios(
         if chain in anomaly_chains and any(str(row.get("attack_chain_id")) == chain for row in attack_logs)
     }
     precision_numerator, precision_denominator, precision_details = _high_risk_precision(anomalies, attack_logs)
-    event_recall_numerator, event_recall_denominator, event_recall_details = _attack_event_recall(anomalies, attack_logs)
+    event_recall_numerator, event_recall_denominator, event_recall_details = _attack_event_recall(
+        anomalies, attack_logs
+    )
     confusion_matrix = _attack_type_confusion_matrix(anomalies, attack_logs)
     risk_accuracy_numerator, risk_accuracy_denominator, risk_accuracy_details = _risk_level_accuracy(anomalies, logs)
 
     detection_latencies = _detection_latencies(attack_logs, anomalies)
     notification_latencies = _notification_latencies(anomalies, deliveries)
-    candidate_ids = {
-        str(row.get("event_id"))
-        for row in anomalies
-        if row.get("risk_level") in {"high", "critical"}
-    }
+    candidate_ids = {str(row.get("event_id")) for row in anomalies if row.get("risk_level") in {"high", "critical"}}
     real_judgements = [
-        row for row in judgements
-        if not bool(row.get("is_mock")) and str(row.get("event_id")) in candidate_ids
+        row for row in judgements if not bool(row.get("is_mock")) and str(row.get("event_id")) in candidate_ids
     ]
     mock_judgements = [
-        row for row in judgements
-        if bool(row.get("is_mock")) and str(row.get("event_id")) in candidate_ids
+        row for row in judgements if bool(row.get("is_mock")) and str(row.get("event_id")) in candidate_ids
     ]
 
     now = datetime.now(timezone.utc)
     report_id = f"acc-{uuid.uuid4()}"
     metrics = [
-        _ratio_metric(report_id, "normal_false_positive_rate", len(normal_high_events), len(normal_event_ids), "<=", thresholds["normal_false_positive_rate_max"], now),
-        _ratio_metric(report_id, "attack_detection_rate", len(detected_chains), len(attack_chains), ">=", thresholds["attack_detection_rate_min"], now),
-        _ratio_metric(report_id, "high_risk_detection_rate", len(high_detected_chains), len(high_risk_chains), ">=", thresholds["high_risk_detection_rate_min"], now),
-        _ratio_metric(report_id, "traceability_rate", len(traced_chains), len(attack_chains), ">=", thresholds["traceability_rate_min"], now),
+        _ratio_metric(
+            report_id,
+            "normal_false_positive_rate",
+            len(normal_high_events),
+            len(normal_event_ids),
+            "<=",
+            thresholds["normal_false_positive_rate_max"],
+            now,
+        ),
+        _ratio_metric(
+            report_id,
+            "attack_detection_rate",
+            len(detected_chains),
+            len(attack_chains),
+            ">=",
+            thresholds["attack_detection_rate_min"],
+            now,
+        ),
+        _ratio_metric(
+            report_id,
+            "high_risk_detection_rate",
+            len(high_detected_chains),
+            len(high_risk_chains),
+            ">=",
+            thresholds["high_risk_detection_rate_min"],
+            now,
+        ),
+        _ratio_metric(
+            report_id,
+            "traceability_rate",
+            len(traced_chains),
+            len(attack_chains),
+            ">=",
+            thresholds["traceability_rate_min"],
+            now,
+        ),
         _ratio_metric(
             report_id,
             "precision_high_risk",
@@ -133,12 +161,60 @@ def evaluate_scenarios(
             now,
             details=risk_accuracy_details,
         ),
-        _latency_metric(report_id, "detection_latency_p50_seconds", _percentile(detection_latencies, 50), len(detection_latencies), "<=", thresholds["detection_latency_p95_seconds_max"], now),
-        _latency_metric(report_id, "detection_latency_p95_seconds", _percentile(detection_latencies, 95), len(detection_latencies), "<=", thresholds["detection_latency_p95_seconds_max"], now),
-        _latency_metric(report_id, "detection_latency_max_seconds", max(detection_latencies, default=0), len(detection_latencies), "<=", thresholds["detection_latency_p95_seconds_max"], now),
-        _latency_metric(report_id, "notification_latency_p50_seconds", _percentile(notification_latencies, 50), len(notification_latencies), "<=", thresholds["notification_latency_p95_seconds_max"], now),
-        _latency_metric(report_id, "notification_latency_p95_seconds", _percentile(notification_latencies, 95), len(notification_latencies), "<=", thresholds["notification_latency_p95_seconds_max"], now),
-        _latency_metric(report_id, "notification_latency_max_seconds", max(notification_latencies, default=0), len(notification_latencies), "<=", thresholds["notification_latency_p95_seconds_max"], now),
+        _latency_metric(
+            report_id,
+            "detection_latency_p50_seconds",
+            _percentile(detection_latencies, 50),
+            len(detection_latencies),
+            "<=",
+            thresholds["detection_latency_p95_seconds_max"],
+            now,
+        ),
+        _latency_metric(
+            report_id,
+            "detection_latency_p95_seconds",
+            _percentile(detection_latencies, 95),
+            len(detection_latencies),
+            "<=",
+            thresholds["detection_latency_p95_seconds_max"],
+            now,
+        ),
+        _latency_metric(
+            report_id,
+            "detection_latency_max_seconds",
+            max(detection_latencies, default=0),
+            len(detection_latencies),
+            "<=",
+            thresholds["detection_latency_p95_seconds_max"],
+            now,
+        ),
+        _latency_metric(
+            report_id,
+            "notification_latency_p50_seconds",
+            _percentile(notification_latencies, 50),
+            len(notification_latencies),
+            "<=",
+            thresholds["notification_latency_p95_seconds_max"],
+            now,
+        ),
+        _latency_metric(
+            report_id,
+            "notification_latency_p95_seconds",
+            _percentile(notification_latencies, 95),
+            len(notification_latencies),
+            "<=",
+            thresholds["notification_latency_p95_seconds_max"],
+            now,
+        ),
+        _latency_metric(
+            report_id,
+            "notification_latency_max_seconds",
+            max(notification_latencies, default=0),
+            len(notification_latencies),
+            "<=",
+            thresholds["notification_latency_p95_seconds_max"],
+            now,
+        ),
         _coverage_metric(report_id, "ai_real_coverage_rate", real_judgements, candidate_ids, now, is_mock=False),
         _coverage_metric(report_id, "ai_mock_coverage_rate", mock_judgements, candidate_ids, now, is_mock=True),
     ]
@@ -240,7 +316,9 @@ def _detail_metric(report_id: str, name: str, details: dict[str, Any], created_a
     )
 
 
-def _latency_metric(report_id: str, name: str, value: float, sample_count: int, op: str, threshold: float, created_at: datetime) -> AcceptanceMetric:
+def _latency_metric(
+    report_id: str, name: str, value: float, sample_count: int, op: str, threshold: float, created_at: datetime
+) -> AcceptanceMetric:
     return AcceptanceMetric(
         report_id=report_id,
         metric_name=name,
@@ -256,7 +334,15 @@ def _latency_metric(report_id: str, name: str, value: float, sample_count: int, 
     )
 
 
-def _coverage_metric(report_id: str, name: str, judgements: list[dict[str, Any]], candidates: set[str], created_at: datetime, *, is_mock: bool) -> AcceptanceMetric:
+def _coverage_metric(
+    report_id: str,
+    name: str,
+    judgements: list[dict[str, Any]],
+    candidates: set[str],
+    created_at: datetime,
+    *,
+    is_mock: bool,
+) -> AcceptanceMetric:
     covered = {str(row.get("event_id")) for row in judgements} & candidates
     metric = _ratio_metric(report_id, name, len(covered), len(candidates), ">=", 0.0, created_at)
     metric.passed = bool(judgements) and bool(candidates)
@@ -264,7 +350,9 @@ def _coverage_metric(report_id: str, name: str, judgements: list[dict[str, Any]]
     return metric
 
 
-def _high_risk_precision(anomalies: list[dict[str, Any]], attack_logs: list[dict[str, Any]]) -> tuple[int, int, dict[str, Any]]:
+def _high_risk_precision(
+    anomalies: list[dict[str, Any]], attack_logs: list[dict[str, Any]]
+) -> tuple[int, int, dict[str, Any]]:
     attack_event_ids = {str(row.get("event_id")) for row in attack_logs if row.get("event_id")}
     attack_chains = {str(row.get("attack_chain_id")) for row in attack_logs if row.get("attack_chain_id")}
     high_anomalies = [row for row in anomalies if row.get("risk_level") in {"high", "critical"}]
@@ -285,7 +373,9 @@ def _high_risk_precision(anomalies: list[dict[str, Any]], attack_logs: list[dict
     return len(true_positive_ids), len(high_anomalies), details
 
 
-def _attack_event_recall(anomalies: list[dict[str, Any]], attack_logs: list[dict[str, Any]]) -> tuple[int, int, dict[str, Any]]:
+def _attack_event_recall(
+    anomalies: list[dict[str, Any]], attack_logs: list[dict[str, Any]]
+) -> tuple[int, int, dict[str, Any]]:
     attack_event_ids = {str(row.get("event_id")) for row in attack_logs if row.get("event_id")}
     detected_event_ids: set[str] = set()
     for row in anomalies:
@@ -321,7 +411,9 @@ def _attack_type_confusion_matrix(anomalies: list[dict[str, Any]], attack_logs: 
     return matrix
 
 
-def _risk_level_accuracy(anomalies: list[dict[str, Any]], logs: list[dict[str, Any]]) -> tuple[int, int, dict[str, Any]]:
+def _risk_level_accuracy(
+    anomalies: list[dict[str, Any]], logs: list[dict[str, Any]]
+) -> tuple[int, int, dict[str, Any]]:
     logs_by_event_id = {str(row.get("event_id")): row for row in logs if row.get("event_id")}
     logs_by_chain: dict[str, list[dict[str, Any]]] = {}
     for row in logs:
@@ -472,7 +564,16 @@ def _ai_evidence(rows: list[dict[str, Any]]) -> tuple[str, bool]:
 
 
 def _is_high_risk_label(label: str) -> bool:
-    return any(item in label for item in ("credential_stuffing", "account_takeover", "data_exfiltration", "privilege_abuse", "lateral_movement"))
+    return any(
+        item in label
+        for item in (
+            "credential_stuffing",
+            "account_takeover",
+            "data_exfiltration",
+            "privilege_abuse",
+            "lateral_movement",
+        )
+    )
 
 
 def _as_datetime(value: Any) -> datetime | None:

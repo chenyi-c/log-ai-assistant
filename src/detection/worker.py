@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """异常检测自动入库 worker。
 
 从 ClickHouse security_logs 增量读取日志，复用 RuleEngine 生成 AnomalyEvent，
 统一写入 anomaly_events。偏离求值与 seen_source 判定已收敛到 src/ueba/deviation.py。
 """
+
+from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -32,14 +32,15 @@ class DetectionStorage(Protocol):
         limit: int = 50,
         offset: int = 0,
         **kwargs: Any,
-    ) -> tuple[list[dict[str, Any]], int]:
-        ...
+    ) -> tuple[list[dict[str, Any]], int]: ...
 
-    def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None:
-        ...
+    def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None: ...
 
-    def get_user_baseline(self, user_id: str, *, tenant_id: str | None = None, baseline_date=None) -> dict[str, Any] | None:
-        ...
+    def existing_anomaly_ids(self, event_ids: list[str]) -> set[str]: ...
+
+    def get_user_baseline(
+        self, user_id: str, *, tenant_id: str | None = None, baseline_date=None
+    ) -> dict[str, Any] | None: ...
 
     def query_user_seen_sources(
         self,
@@ -48,18 +49,15 @@ class DetectionStorage(Protocol):
         source_type: str | None = None,
         source_key: str | None = None,
         limit: int = 10000,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
-    def upsert_user_seen_sources(self, sources: list[dict[str, Any]]) -> None:
-        ...
+    def upsert_user_seen_sources(self, sources: list[dict[str, Any]]) -> None: ...
 
     def get_user_reason_feedback_stats(
         self,
         tenant_id: str = "default",
         user_id: str | None = None,
-    ) -> dict[str, dict[str, int]]:
-        ...
+    ) -> dict[str, dict[str, int]]: ...
 
 
 @dataclass(frozen=True)
@@ -123,6 +121,9 @@ class AnomalyDetectorWorker:
         except Exception:
             self._engine.feedback_stats = {}
         anomalies = _dedupe_anomalies(self._detect_logs(logs), self._seen_anomaly_ids)
+        if anomalies:
+            existing_ids = self.storage.existing_anomaly_ids([item.event_id for item in anomalies])
+            anomalies = [item for item in anomalies if item.event_id not in existing_ids]
         if anomalies:
             self.storage.insert_anomalies(anomalies)
             try:

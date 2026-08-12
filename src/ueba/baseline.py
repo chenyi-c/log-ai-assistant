@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,7 @@ def _top_n_items(counter: Counter[str], n: int) -> list[str]:
 
 def aggregate_daily_features(
     storage: ClickHouseStorage,
-    target_date: datetime | None = None,
+    target_date: date | datetime | None = None,
 ) -> int:
     """Aggregate one day of ``security_logs`` into per-user daily features.
 
@@ -65,42 +65,46 @@ def aggregate_daily_features(
         night_count = int(agg.get("night_event_count") or 0)
         sensitive_count = int(agg.get("sensitive_action_count") or 0)
 
-        rows.append({
-            "feature_date": date_val,
-            "tenant_id": str(agg.get("tenant_id") or "default"),
-            "user_id": str(agg.get("user_id")),
-            "account_type": account_type_top[0] if account_type_top else "unknown",
-            "login_count": int(agg.get("login_count") or 0),
-            "failed_login_count": int(agg.get("failed_login_count") or 0),
-            "success_login_count": int(agg.get("success_login_count") or 0),
-            "distinct_src_ip_count": int(agg.get("distinct_src_ip_count") or 0),
-            "distinct_host_count": int(agg.get("distinct_host_count") or 0),
-            "distinct_action_count": int(agg.get("distinct_action_count") or 0),
-            "first_seen_time": agg.get("first_seen_time") or day_start,
-            "last_seen_time": agg.get("last_seen_time") or day_start,
-            "night_event_count": night_count,
-            "sensitive_action_count": sensitive_count,
-            "download_count": int(agg.get("download_count") or 0),
-            "permission_change_count": int(agg.get("permission_change_count") or 0),
-            "new_source_count": 0,
-            "maintenance_window_hit_count": 0,
-            "common_src_ips": common_src_ips,
-            # Prefixes are derived from the top source IPs; cheap and good enough
-            # for baseline location profiling without a second aggregation pass.
-            "common_ip_prefixes": _top_n_items(
-                Counter({p: 1 for p in {_ip_prefix(ip) for ip in common_src_ips}}), 5
-            ),
-            "common_hosts": common_hosts,
-            "common_actions": common_actions,
-            "profile_metrics": json.dumps({
-                "unique_src_ips": int(agg.get("distinct_src_ip_count") or 0),
-                "unique_hosts": int(agg.get("distinct_host_count") or 0),
-                "unique_actions": int(agg.get("distinct_action_count") or 0),
-                "night_ratio": round(night_count / event_count, 4) if event_count else 0,
-                "sensitive_ratio": round(sensitive_count / event_count, 4) if event_count else 0,
-            }),
-            "created_at": now_dt,
-        })
+        rows.append(
+            {
+                "feature_date": date_val,
+                "tenant_id": str(agg.get("tenant_id") or "default"),
+                "user_id": str(agg.get("user_id")),
+                "account_type": account_type_top[0] if account_type_top else "unknown",
+                "login_count": int(agg.get("login_count") or 0),
+                "failed_login_count": int(agg.get("failed_login_count") or 0),
+                "success_login_count": int(agg.get("success_login_count") or 0),
+                "distinct_src_ip_count": int(agg.get("distinct_src_ip_count") or 0),
+                "distinct_host_count": int(agg.get("distinct_host_count") or 0),
+                "distinct_action_count": int(agg.get("distinct_action_count") or 0),
+                "first_seen_time": agg.get("first_seen_time") or day_start,
+                "last_seen_time": agg.get("last_seen_time") or day_start,
+                "night_event_count": night_count,
+                "sensitive_action_count": sensitive_count,
+                "download_count": int(agg.get("download_count") or 0),
+                "permission_change_count": int(agg.get("permission_change_count") or 0),
+                "new_source_count": 0,
+                "maintenance_window_hit_count": 0,
+                "common_src_ips": common_src_ips,
+                # Prefixes are derived from the top source IPs; cheap and good enough
+                # for baseline location profiling without a second aggregation pass.
+                "common_ip_prefixes": _top_n_items(
+                    Counter({p: 1 for p in {_ip_prefix(ip) for ip in common_src_ips}}), 5
+                ),
+                "common_hosts": common_hosts,
+                "common_actions": common_actions,
+                "profile_metrics": json.dumps(
+                    {
+                        "unique_src_ips": int(agg.get("distinct_src_ip_count") or 0),
+                        "unique_hosts": int(agg.get("distinct_host_count") or 0),
+                        "unique_actions": int(agg.get("distinct_action_count") or 0),
+                        "night_ratio": round(night_count / event_count, 4) if event_count else 0,
+                        "sensitive_ratio": round(sensitive_count / event_count, 4) if event_count else 0,
+                    }
+                ),
+                "created_at": now_dt,
+            }
+        )
 
     storage.insert_user_daily_features(rows)
     return len(rows)
@@ -154,7 +158,6 @@ def update_seen_sources(
     new_sources: dict[tuple[str, str, str, str], datetime] = {}
     for log in logs:
         uid = str(log.get("user_id") or "")
-        stype = str(log.get("source_type") or "")
         src_ip = str(log.get("src_ip") or "")
         dst_ip = str(log.get("dst_ip") or "")
         if not uid:
@@ -177,7 +180,6 @@ def update_seen_sources(
                     new_sources[composite] = dt
 
     upserted = 0
-    now_utc = datetime.now(timezone.utc)
     for (tenant, user, source_type, source_key), first_seen in new_sources.items():
         existing = storage.query_user_seen_sources(
             tenant_id=tenant,
@@ -187,25 +189,33 @@ def update_seen_sources(
             limit=1,
         )
         if existing:
-            storage.upsert_user_seen_sources([{
-                "tenant_id": tenant,
-                "user_id": user,
-                "source_type": source_type,
-                "source_key": source_key,
-                "first_seen_time": existing[0]["first_seen_time"],
-                "last_seen_time": first_seen,
-                "seen_count": int(existing[0].get("seen_count", 0)) + 1,
-            }])
+            storage.upsert_user_seen_sources(
+                [
+                    {
+                        "tenant_id": tenant,
+                        "user_id": user,
+                        "source_type": source_type,
+                        "source_key": source_key,
+                        "first_seen_time": existing[0]["first_seen_time"],
+                        "last_seen_time": first_seen,
+                        "seen_count": int(existing[0].get("seen_count", 0)) + 1,
+                    }
+                ]
+            )
         else:
-            storage.upsert_user_seen_sources([{
-                "tenant_id": tenant,
-                "user_id": user,
-                "source_type": source_type,
-                "source_key": source_key,
-                "first_seen_time": first_seen,
-                "last_seen_time": first_seen,
-                "seen_count": 1,
-            }])
+            storage.upsert_user_seen_sources(
+                [
+                    {
+                        "tenant_id": tenant,
+                        "user_id": user,
+                        "source_type": source_type,
+                        "source_key": source_key,
+                        "first_seen_time": first_seen,
+                        "last_seen_time": first_seen,
+                        "seen_count": 1,
+                    }
+                ]
+            )
         upserted += 1
 
     return upserted
@@ -245,13 +255,14 @@ def build_baselines_from_daily_features(
     *,
     lookback_days: int = 90,
     tenant_id: str = "default",
+    as_of_date: date | None = None,
 ) -> list[UserBaseline]:
     """Build per-user baselines from all available daily feature data.
 
     Uses up to ``lookback_days`` of history (default 90).  All dates with
     daily features are included so baselines reflect the full behaviour history.
     """
-    end_date = datetime.now(timezone.utc).date()
+    end_date = as_of_date or datetime.now(timezone.utc).date()
     # Calendar-month seasonality needs cross-year history. Other scopes still
     # apply their own 90d/30d windows after this wider read.
     history_days = max(lookback_days, 730)
@@ -280,10 +291,17 @@ def build_baselines_from_daily_features(
         feedback_stats = {}
 
     DAILY_NUMERIC = (
-        "login_count", "failed_login_count", "success_login_count",
-        "distinct_src_ip_count", "distinct_host_count", "distinct_action_count",
-        "night_event_count", "sensitive_action_count", "download_count",
-        "permission_change_count", "new_source_count",
+        "login_count",
+        "failed_login_count",
+        "success_login_count",
+        "distinct_src_ip_count",
+        "distinct_host_count",
+        "distinct_action_count",
+        "night_event_count",
+        "sensitive_action_count",
+        "download_count",
+        "permission_change_count",
+        "new_source_count",
     )
     results: list[UserBaseline] = []
     for user_id, daily_records in by_user.items():
@@ -334,7 +352,9 @@ def _period_record_sets(
         ),
     ]
     for weekday_index, weekday in enumerate(WEEKDAYS):
-        rows = [row for row in recent_records if row.get("feature_date") and row["feature_date"].weekday() == weekday_index]
+        rows = [
+            row for row in recent_records if row.get("feature_date") and row["feature_date"].weekday() == weekday_index
+        ]
         if rows:
             scopes.append(("weekday", weekday, rows))
     for month in sorted({row["feature_date"].month for row in daily_records if row.get("feature_date")}):
@@ -451,9 +471,15 @@ def _build_daily_feature_baseline(
         if total > 0:
             review_score = user_confirmed / total
     bonus = 1.0 if sample_days >= 30 else 0.0
-    confidence = max(0.05, min(0.95, round(
-        0.35 * days_score + 0.25 * volume_score + 0.25 * feature_score + 0.10 * review_score + 0.05 * bonus, 2
-    )))
+    confidence = max(
+        0.05,
+        min(
+            0.95,
+            round(
+                0.35 * days_score + 0.25 * volume_score + 0.25 * feature_score + 0.10 * review_score + 0.05 * bonus, 2
+            ),
+        ),
+    )
 
     return UserBaseline(
         baseline_date=datetime.now(timezone.utc).date(),
@@ -563,6 +589,7 @@ def build_baselines_from_logs(logs: list[dict[str, Any]]) -> list[UserBaseline]:
         fallback_days = len(set(event_dates))
         fallback_count = len(user_logs)
         import math as _math
+
         fallback_days_score = min(1.0, fallback_days / 3)
         fallback_vol_score = min(1.0, _math.log10(max(fallback_count, 1)) / _math.log10(50))
         fallback_conf = round(0.40 * fallback_days_score + 0.30 * fallback_vol_score + 0.30 * 1.0, 2)

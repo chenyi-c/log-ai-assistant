@@ -272,7 +272,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_detect_worker.add_argument("--interval-seconds", type=int, default=30, help="持续运行时每轮间隔秒数")
     p_detect_worker.add_argument("--lookback-minutes", type=int, default=10, help="首次启动回看多少分钟日志")
     p_detect_worker.add_argument("--batch-size", type=int, default=1000, help="每轮最多读取多少条日志")
-    p_detect_worker.add_argument("--recover-state-on-start", action="store_true", help="启动时用回看窗口日志恢复短期规则状态但不写入历史异常")
+    p_detect_worker.add_argument(
+        "--recover-state-on-start", action="store_true", help="启动时用回看窗口日志恢复短期规则状态但不写入历史异常"
+    )
     p_detect_worker.set_defaults(func=cmd_detect_worker)
 
     p_analyze = sub.add_parser("analyze-alerts", help="对未研判异常事件调用大模型")

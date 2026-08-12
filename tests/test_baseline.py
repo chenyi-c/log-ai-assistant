@@ -94,9 +94,7 @@ def test_aggregate_daily_features_uses_clickhouse_pushdown() -> None:
     ]
     storage = FakeAggStorage(aggregates)
 
-    count = aggregate_daily_features(
-        storage, target_date=datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
-    )
+    count = aggregate_daily_features(storage, target_date=datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc))
 
     assert count == 1
     assert storage.captured_date == date(2026, 5, 31)
@@ -141,8 +139,12 @@ def test_daily_feature_builder_emits_periodic_baselines() -> None:
                 "distinct_src_ip_count": 1,
                 "distinct_host_count": 1,
                 "distinct_action_count": 2,
-                "first_seen_time": datetime.combine(feature_date, datetime.min.time(), tzinfo=timezone.utc).replace(hour=9),
-                "last_seen_time": datetime.combine(feature_date, datetime.min.time(), tzinfo=timezone.utc).replace(hour=18),
+                "first_seen_time": datetime.combine(feature_date, datetime.min.time(), tzinfo=timezone.utc).replace(
+                    hour=9
+                ),
+                "last_seen_time": datetime.combine(feature_date, datetime.min.time(), tzinfo=timezone.utc).replace(
+                    hour=18
+                ),
                 "night_event_count": 0,
                 "sensitive_action_count": 1,
                 "download_count": 1,
@@ -158,7 +160,10 @@ def test_daily_feature_builder_emits_periodic_baselines() -> None:
             }
         )
 
-    baselines = build_baselines_from_daily_features(FakeDailyFeatureStorage(records))
+    baselines = build_baselines_from_daily_features(
+        FakeDailyFeatureStorage(records),
+        as_of_date=date(2026, 6, 8),
+    )
     periods = {(item.period_type, item.period_key) for item in baselines}
 
     assert ("global", "all") in periods
