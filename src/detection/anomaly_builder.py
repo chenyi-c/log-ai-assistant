@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """异常事件生成器。
 
 这个文件只负责一件事：把规则命中的结果整理成统一的 AnomalyEvent。
 RuleEngine 负责“发现异常”，AnomalyEventBuilder 负责“写异常报告”。
 """
+
+from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
@@ -12,7 +12,7 @@ import hashlib
 from typing import Any
 import uuid
 
-from src.detection.scoring import RISK_COMPONENT_KEYS, score_event
+from src.detection.scoring import RISK_COMPONENT_KEYS, score_event  # noqa: F401
 from src.schemas import AnomalyEvent, NormalizedLog
 
 # reason_code 到 attack_type 的映射。
@@ -146,9 +146,7 @@ def _attack_type(reason_codes: Iterable[str]) -> str:
     """根据 reason_codes 推断攻击类型。"""
 
     attack_types = {
-        REASON_ATTACK_TYPE_MAP[reason_code]
-        for reason_code in reason_codes
-        if reason_code in REASON_ATTACK_TYPE_MAP
+        REASON_ATTACK_TYPE_MAP[reason_code] for reason_code in reason_codes if reason_code in REASON_ATTACK_TYPE_MAP
     }
     for attack_type in ATTACK_TYPE_PRIORITY:
         if attack_type in attack_types:

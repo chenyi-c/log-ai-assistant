@@ -140,8 +140,14 @@ def test_alert_detail_composes_alert_baseline_related_logs_ai_report_and_evidenc
     assert payload["ai_judgement"]["judgement_id"] == "ai-1"
     assert [item["event_id"] for item in payload["related_logs"]] == ["evt-login", "evt-export"]
     assert payload["evidence_chain"]["rule_hits"] == ["新IP登录后短时间访问敏感资源"]
-    assert "src_ip 203.0.113.9 is outside baseline location_profile.common_ips" in payload["evidence_chain"]["baseline_deviations"]
-    assert "resource /api/export is outside baseline access_profile.common_resources" in payload["evidence_chain"]["baseline_deviations"]
+    assert (
+        "src_ip 203.0.113.9 is outside baseline location_profile.common_ips"
+        in payload["evidence_chain"]["baseline_deviations"]
+    )
+    assert (
+        "resource /api/export is outside baseline access_profile.common_resources"
+        in payload["evidence_chain"]["baseline_deviations"]
+    )
     assert "related logs: 2" in payload["evidence_chain"]["risk_reason"]
 
     assert storage.calls == [

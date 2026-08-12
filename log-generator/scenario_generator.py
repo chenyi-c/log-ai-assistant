@@ -264,9 +264,7 @@ class ScenarioGenerator:
 
     def _select_users(self, pattern: dict[str, Any]) -> list[dict[str, Any]]:
         account_type = pattern.get("target_account_type")
-        candidates = [
-            user for user in self.users if not account_type or user.get("account_type") == account_type
-        ]
+        candidates = [user for user in self.users if not account_type or user.get("account_type") == account_type]
         if not candidates:
             candidates = self.users
         count = max(1, int(pattern.get("target_user_count") or 1))
@@ -287,7 +285,9 @@ class ScenarioGenerator:
         return self.random.choice(prefixes) + str(self.random.randint(1, 254))
 
 
-def write_records(records: list[GeneratedRecord], output_dir: Path, manifest_path: Path | None = None) -> dict[str, int]:
+def write_records(
+    records: list[GeneratedRecord], output_dir: Path, manifest_path: Path | None = None
+) -> dict[str, int]:
     output_dir.mkdir(parents=True, exist_ok=True)
     counts: dict[str, int] = defaultdict(int)
     manifest_rows: list[str] = []

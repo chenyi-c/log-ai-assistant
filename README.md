@@ -231,4 +231,25 @@ docker compose --profile scale up --build
 docker compose run --rm tester
 ```
 
+## Engineering quality workflow
+
+The repository uses Docker as the source of truth for backend tests. Before opening a pull request, run:
+
+```bash
+docker compose run --rm tester
+ruff check src tests log-generator
+ruff format --check src tests log-generator
+mypy
+cd frontend && npm ci && npm run build && npm audit --omit=dev
+```
+
+To install the local commit checks, first install the development tools and then enable the hooks:
+
+```bash
+python -m pip install -r requirements/dev.txt
+pre-commit install
+```
+
+The CI workflow repeats these checks on pushes and pull requests. See [the engineering quality audit](docs/12_engineering_quality_audit.md) for the prioritized technical-debt register and [the changelog](CHANGELOG.md) for release history.
+
 Elasticsearch / Kibana 仅保留在 `legacy-es` profile 中，供旧代码兼容或迁移对照使用，不属于当前正式主链路。

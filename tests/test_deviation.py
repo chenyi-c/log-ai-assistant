@@ -9,11 +9,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from src.ueba.deviation import (
-    BaselineDeviation,
     UserContext,
     _safe_severity,
     evaluate_deviations,
@@ -429,7 +428,9 @@ class _FakeDeviationStorage:
         self.baselines = baselines or {}
         self._seen_sources = seen_sources or []
 
-    def get_user_baseline(self, user_id: str, *, tenant_id: str | None = None, baseline_date: Any = None) -> dict[str, Any] | None:
+    def get_user_baseline(
+        self, user_id: str, *, tenant_id: str | None = None, baseline_date: Any = None
+    ) -> dict[str, Any] | None:
         return self.baselines.get((tenant_id or "default", user_id))
 
     def query_user_seen_sources(

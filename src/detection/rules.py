@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """规则检测引擎。
 
 这个文件负责“发现异常行为”，例如暴力破解、新 IP 登录、敏感资源访问等。
 发现异常后，它会把事件生成工作交给 AnomalyEventBuilder。
 """
+
+from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -42,11 +42,7 @@ class DetectionContext:
     baseline_available: bool = False
 
     def deviation_types(self) -> set[str]:
-        return {
-            str(item.get("deviation_type"))
-            for item in self.baseline_deviations
-            if item.get("deviation_type")
-        }
+        return {str(item.get("deviation_type")) for item in self.baseline_deviations if item.get("deviation_type")}
 
 
 def _is_sensitive(resource: str | None) -> bool:
@@ -269,7 +265,9 @@ class RuleEngine:
         anomalies: list[AnomalyEvent] = []
         if log.user_id and log.src_ip:
             known = self.known_login_ips[log.user_id]
-            is_new_source = context.seen_source is False if context and context.seen_source is not None else log.src_ip not in known
+            is_new_source = (
+                context.seen_source is False if context and context.seen_source is not None else log.src_ip not in known
+            )
             if is_new_source:
                 # 第一次见到这个用户从该 IP 登录，记录下来供后续敏感访问关联。
                 known.add(log.src_ip)
@@ -293,7 +291,10 @@ class RuleEngine:
                     log,
                     rule="非工作时间登录",
                     reason_codes=["rare_login_hour"],
-                    evidence={"event_hour": ts.hour, "work_hours": f"{settings.work_hour_start}:00-{settings.work_hour_end}:00"},
+                    evidence={
+                        "event_hour": ts.hour,
+                        "work_hours": f"{settings.work_hour_start}:00-{settings.work_hour_end}:00",
+                    },
                     baseline_deviations=context.baseline_deviations if context else None,
                     context=context,
                 )

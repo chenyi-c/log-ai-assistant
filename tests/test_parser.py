@@ -80,8 +80,8 @@ def test_resource_url_template_and_fingerprint_are_added_to_attrs() -> None:
 
 def test_parse_syslog_line() -> None:
     line = (
-        '2026-04-01 09:40:16 vpn-gw-bj01 vpnd: event=LOGIN_FAIL user=admin dept=IT部 '
-        'src_ip=185.220.101.8 src_geo=荷兰/阿姆斯特丹 proto=IPSec auth=password '
+        "2026-04-01 09:40:16 vpn-gw-bj01 vpnd: event=LOGIN_FAIL user=admin dept=IT部 "
+        "src_ip=185.220.101.8 src_geo=荷兰/阿姆斯特丹 proto=IPSec auth=password "
         'client="GlobalProtect 6.1" session=ABC-123 result=FAIL reason=密码错误 '
         'risk_score=70 risk_tags="异常IP地址,境外登录(荷兰),登录失败"'
     )

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """用户行为偏离求值模块（持久化证据链）。
 
 - UserContext / load_user_context：封装对 ClickHouse 基线与 seen_sources 的持久化查询。
@@ -9,6 +7,8 @@ from __future__ import annotations
 evaluate_deviations 为纯函数，缺少用户基线时返回样本不足降级证据，而不把“没有历史”
 误判为“没有偏离”。
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -47,8 +47,7 @@ class DeviationStorage(Protocol):
         *,
         tenant_id: str | None = None,
         baseline_date: Any = None,
-    ) -> dict[str, Any] | None:
-        ...
+    ) -> dict[str, Any] | None: ...
 
     def query_user_seen_sources(
         self,
@@ -58,8 +57,7 @@ class DeviationStorage(Protocol):
         source_type: str | None = None,
         source_key: str | None = None,
         limit: int = 10000,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
 
 @dataclass(frozen=True)
@@ -267,11 +265,7 @@ def evaluate_deviations(log: Any, context: UserContext) -> list[BaselineDeviatio
 
     download_count = _metric_value(log, context.daily_feature, "download_count")
     download_threshold = _profile_threshold(access_profile, "download_count")
-    if (
-        download_count is not None
-        and download_threshold is not None
-        and download_count > download_threshold
-    ):
+    if download_count is not None and download_threshold is not None and download_count > download_threshold:
         deviations.append(
             _baseline_deviation(
                 context,

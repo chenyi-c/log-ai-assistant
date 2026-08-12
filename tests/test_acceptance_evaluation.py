@@ -53,11 +53,16 @@ class AcceptanceStorage:
             for index in range(1, 4)
         ]
         deliveries = [
-            {"event_id": f"alert-{index}", "delivered_at": NOW + timedelta(seconds=index + 20)}
-            for index in range(1, 4)
+            {"event_id": f"alert-{index}", "delivered_at": NOW + timedelta(seconds=index + 20)} for index in range(1, 4)
         ]
         judgements = [
-            {"event_id": "alert-1", "model_name": "qwen-plus", "model_version": "real-v1", "is_mock": 0, "created_at": NOW},
+            {
+                "event_id": "alert-1",
+                "model_name": "qwen-plus",
+                "model_version": "real-v1",
+                "is_mock": 0,
+                "created_at": NOW,
+            },
             {"event_id": "alert-2", "model_name": "mock", "model_version": "mock-v1", "is_mock": 1, "created_at": NOW},
         ]
         return {"logs": [*normal, *attacks], "anomalies": anomalies, "deliveries": deliveries, "judgements": judgements}

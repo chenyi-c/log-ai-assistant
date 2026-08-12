@@ -12,11 +12,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.ai_engine import AIAnalyzer
-from src.config import settings
-from src.report.daily_report import generate_daily_report
-from src.schemas import AnomalyEvent
-from src.storage import ClickHouseStorage
+from src.ai_engine import AIAnalyzer  # noqa: E402
+from src.config import settings  # noqa: E402
+from src.report.daily_report import generate_daily_report  # noqa: E402
+from src.schemas import AnomalyEvent  # noqa: E402
+from src.storage import ClickHouseStorage  # noqa: E402
 
 st.set_page_config(page_title="日志分析 AI 助手", layout="wide")
 
@@ -118,7 +118,10 @@ def page_alerts(storage: ClickHouseStorage, analyzer: AIAnalyzer) -> None:
         return
 
     df = pd.DataFrame(alerts)
-    st.dataframe(df[["event_id", "detect_time", "user_id", "src_ip", "risk_level", "rule_hits", "status"]], use_container_width=True)
+    st.dataframe(
+        df[["event_id", "detect_time", "user_id", "src_ip", "risk_level", "rule_hits", "status"]],
+        use_container_width=True,
+    )
 
     selected_id = st.selectbox("选择异常事件", options=df["event_id"].tolist())
     selected = next(item for item in alerts if item.get("event_id") == selected_id)
@@ -155,9 +158,7 @@ def page_ai_reports(storage: ClickHouseStorage) -> None:
 def page_user_risk(storage: ClickHouseStorage) -> None:
     st.title("用户风险排行")
     rows = storage.aggregate_anomalies(field="user_id", limit=20)
-    df = pd.DataFrame(
-        [{"user_id": row.get("key"), "异常数量": row.get("count", 0)} for row in rows]
-    )
+    df = pd.DataFrame([{"user_id": row.get("key"), "异常数量": row.get("count", 0)} for row in rows])
     st.dataframe(df, use_container_width=True)
 
 

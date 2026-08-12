@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date as Date, datetime, timedelta, timezone
+from datetime import date as Date, datetime, timezone
 from threading import Lock
 from typing import Any
 
@@ -65,7 +65,6 @@ from src.schemas import (
 )
 from src.storage import ClickHouseStorage
 from src.ueba import build_and_store_baselines
-from src.ueba.baseline import aggregate_daily_features, update_seen_sources
 
 
 ERROR_RESPONSE_SCHEMA = {
@@ -117,6 +116,7 @@ app.add_middleware(
 )
 def health_check() -> HealthResponse:
     return get_health_status()
+
 
 def get_storage() -> ClickHouseStorage:
     return ClickHouseStorage()
@@ -524,24 +524,33 @@ def flag_false_positive(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "clickhouse_query_failed", "message": "Failed to query anomaly", "details": {"event_id": event_id}},
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to query anomaly",
+                "details": {"event_id": event_id},
+            },
         ) from exc
     if not alert:
-        raise HTTPException(status_code=404, detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}},
+        )
 
     storage.update_anomaly_status(event_id, "pending_review")
-    storage.insert_feedback(AIFeedback(
-        feedback_id=f"fb-{uuid.uuid4()}",
-        event_id=event_id,
-        tenant_id=str(alert.get("tenant_id", "default")),
-        user_id=str(alert.get("user_id", "")),
-        feedback_type="false_positive",
-        suggestion="分析员将此异常标记为误报复核。",
-        target_component="scoring",
-        confidence=1,
-        review_status="pending",
-        created_at=datetime.now(timezone.utc),
-    ))
+    storage.insert_feedback(
+        AIFeedback(
+            feedback_id=f"fb-{uuid.uuid4()}",
+            event_id=event_id,
+            tenant_id=str(alert.get("tenant_id", "default")),
+            user_id=str(alert.get("user_id", "")),
+            feedback_type="false_positive",
+            suggestion="分析员将此异常标记为误报复核。",
+            target_component="scoring",
+            confidence=1,
+            review_status="pending",
+            created_at=datetime.now(timezone.utc),
+        )
+    )
     return {"status": "ok", "event_id": event_id, "anomaly_status": "pending_review"}
 
 
@@ -565,10 +574,17 @@ def confirm_false_positive(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "clickhouse_query_failed", "message": "Failed to query anomaly", "details": {"event_id": event_id}},
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to query anomaly",
+                "details": {"event_id": event_id},
+            },
         ) from exc
     if not alert:
-        raise HTTPException(status_code=404, detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}},
+        )
 
     storage.update_anomaly_status(event_id, "false_positive")
     # Feedback loop: increment false-positive count for this reason-code combo
@@ -598,10 +614,17 @@ def reject_false_positive(
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail={"code": "clickhouse_query_failed", "message": "Failed to query anomaly", "details": {"event_id": event_id}},
+            detail={
+                "code": "clickhouse_query_failed",
+                "message": "Failed to query anomaly",
+                "details": {"event_id": event_id},
+            },
         ) from exc
     if not alert:
-        raise HTTPException(status_code=404, detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "anomaly_not_found", "message": "Anomaly not found", "details": {"event_id": event_id}},
+        )
 
     storage.update_anomaly_status(event_id, "rejected")
     # Feedback loop: increment confirmed (true-positive) count for this reason-code combo
@@ -1408,7 +1431,11 @@ def get_acceptance_report(
     if not report:
         raise HTTPException(
             status_code=404,
-            detail={"code": "acceptance_report_not_found", "message": "Acceptance report not found", "details": {"report_id": report_id}},
+            detail={
+                "code": "acceptance_report_not_found",
+                "message": "Acceptance report not found",
+                "details": {"report_id": report_id},
+            },
         )
     return AcceptanceReportDetail(report=AcceptanceReport.model_validate(report), metrics=metrics)
 
@@ -1450,9 +1477,16 @@ def get_notification(
     if not item:
         raise HTTPException(
             status_code=404,
-            detail={"code": "notification_not_found", "message": "Notification not found", "details": {"outbox_id": outbox_id}},
+            detail={
+                "code": "notification_not_found",
+                "message": "Notification not found",
+                "details": {"outbox_id": outbox_id},
+            },
         )
-    return {"notification": NotificationOutbox.model_validate(item), "attempts": storage.list_notification_attempts(outbox_id)}
+    return {
+        "notification": NotificationOutbox.model_validate(item),
+        "attempts": storage.list_notification_attempts(outbox_id),
+    }
 
 
 @app.post(
@@ -1471,7 +1505,11 @@ def retry_notification(
     except KeyError as exc:
         raise HTTPException(
             status_code=404,
-            detail={"code": "notification_not_found", "message": "Notification not found", "details": {"outbox_id": outbox_id}},
+            detail={
+                "code": "notification_not_found",
+                "message": "Notification not found",
+                "details": {"outbox_id": outbox_id},
+            },
         ) from exc
     return NotificationOutbox.model_validate(item)
 
@@ -1796,7 +1834,9 @@ def _derive_related_log_window_stats(related_logs: list[dict[str, Any]]) -> dict
             successful_login_count += 1
         if result == "denied":
             denied_count += 1
-        if "sensitive_resource" in risk_tags or any(marker in resource for marker in ("admin", "export", "secret", "sensitive")):
+        if "sensitive_resource" in risk_tags or any(
+            marker in resource for marker in ("admin", "export", "secret", "sensitive")
+        ):
             sensitive_access_count += 1
 
     stats: dict[str, Any] = {
@@ -1925,7 +1965,9 @@ def _resolve_feedback_suggestion(key: str | None, value: Any, detail: dict[str, 
     return f"{prefix}{value}"
 
 
-def _build_evidence_chain(alert: dict[str, Any], baseline: dict[str, Any], related_logs: list[dict[str, Any]]) -> EvidenceChain:
+def _build_evidence_chain(
+    alert: dict[str, Any], baseline: dict[str, Any], related_logs: list[dict[str, Any]]
+) -> EvidenceChain:
     rule_hits = _string_list(alert.get("rule_hits"))
     baseline_deviations = _extract_baseline_deviations(alert, baseline, related_logs)
     risk_reason = _build_risk_reason(alert, rule_hits, baseline_deviations, related_logs, has_baseline=bool(baseline))
@@ -1981,17 +2023,23 @@ def _extract_baseline_deviations(
     api_calls = _numeric(evidence.get("api_calls_1m"))
     avg_api = _numeric(access_profile.get("avg_api_calls_per_minute"))
     if api_calls is not None and avg_api is not None and api_calls > max(avg_api * 2, avg_api + 5):
-        deviations.append(f"api_calls_1m {api_calls:g} exceeds baseline access_profile.avg_api_calls_per_minute {avg_api:g}")
+        deviations.append(
+            f"api_calls_1m {api_calls:g} exceeds baseline access_profile.avg_api_calls_per_minute {avg_api:g}"
+        )
 
     failed_count = _numeric(evidence.get("failed_count_5m"))
     failed_baseline = _numeric(result_profile.get("failed_login_count_7d"))
     if failed_count is not None and failed_baseline is not None and failed_count > max(3, failed_baseline):
-        deviations.append(f"failed_count_5m {failed_count:g} exceeds baseline result_profile.failed_login_count_7d {failed_baseline:g}")
+        deviations.append(
+            f"failed_count_5m {failed_count:g} exceeds baseline result_profile.failed_login_count_7d {failed_baseline:g}"
+        )
 
     sensitive_count = _numeric(evidence.get("sensitive_count_5m"))
     sensitive_rate = _numeric(access_profile.get("sensitive_access_rate"))
     if sensitive_count is not None and sensitive_count > 0 and sensitive_rate is not None and sensitive_rate < 0.1:
-        deviations.append(f"sensitive access count {sensitive_count:g} is unusual for baseline access_profile.sensitive_access_rate {sensitive_rate:g}")
+        deviations.append(
+            f"sensitive access count {sensitive_count:g} is unusual for baseline access_profile.sensitive_access_rate {sensitive_rate:g}"
+        )
 
     return deviations
 

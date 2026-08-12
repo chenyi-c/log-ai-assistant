@@ -23,8 +23,7 @@ class RunStorage:
 
     def successful_task_run(self, idempotency_key: str):
         matches = [
-            row for row in self.states
-            if row["idempotency_key"] == idempotency_key and row["status"] == "succeeded"
+            row for row in self.states if row["idempotency_key"] == idempotency_key and row["status"] == "succeeded"
         ]
         return matches[-1] if matches else None
 
@@ -89,6 +88,13 @@ def test_same_idempotency_key_returns_existing_success(tmp_path: Path) -> None:
     assert first.status == "succeeded"
     assert second.run_id == first.run_id
     assert calls == 1
+
+
+def test_task_lock_is_available_on_the_current_platform(tmp_path: Path) -> None:
+    runner = OperationsRunner(RunStorage(), config(tmp_path))
+
+    with runner._task_lock("platform-lock"):
+        assert (tmp_path / "locks" / "platform-lock.lock").exists()
 
 
 def test_failed_task_retries_and_preserves_each_attempt(tmp_path: Path) -> None:

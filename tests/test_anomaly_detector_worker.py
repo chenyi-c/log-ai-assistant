@@ -62,7 +62,7 @@ class FakeStorage:
             and (end_time is None or NormalizedLog.model_validate(item).event_time <= end_time)
         ]
         items.sort(key=lambda item: NormalizedLog.model_validate(item).event_time, reverse=True)
-        return items[offset:offset + limit], len(items)
+        return items[offset : offset + limit], len(items)
 
     def insert_anomalies(self, anomalies: list[AnomalyEvent]) -> None:
         self.inserted_batches.append(list(anomalies))
@@ -96,15 +96,17 @@ class FakeStorage:
                 continue
             if source_key and sk != source_key:
                 continue
-            results.append({
-                "tenant_id": t,
-                "user_id": u,
-                "source_type": st,
-                "source_key": sk,
-                "first_seen_time": BASE_TIME - timedelta(days=1),
-                "last_seen_time": BASE_TIME - timedelta(days=1),
-                "seen_count": 3,
-            })
+            results.append(
+                {
+                    "tenant_id": t,
+                    "user_id": u,
+                    "source_type": st,
+                    "source_key": sk,
+                    "first_seen_time": BASE_TIME - timedelta(days=1),
+                    "last_seen_time": BASE_TIME - timedelta(days=1),
+                    "seen_count": 3,
+                }
+            )
         return results[:limit]
 
     def upsert_user_seen_sources(self, sources: list[dict[str, Any]]) -> None:

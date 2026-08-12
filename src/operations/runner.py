@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import subprocess
+import sys
 import time
 import uuid
 from contextlib import contextmanager
@@ -295,14 +295,18 @@ class OperationsRunner:
             "notification_deliver": self._notifications,
         }[task_name]
 
-    def _daily_feature(self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
+    def _daily_feature(
+        self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         count = aggregate_daily_features(self.storage, target_date)
         return {"table": "ueba_user_daily_features", "feature_date": target_date.isoformat(), "row_count": count}
 
     def _baseline(self, tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
         baselines = build_and_store_baselines(self.storage)
         if not baselines:
-            raise TaskNeedsReview("baseline_training_data_missing", "no daily features were available for baseline training")
+            raise TaskNeedsReview(
+                "baseline_training_data_missing", "no daily features were available for baseline training"
+            )
         unique_users = len({(item.tenant_id, item.user_id) for item in baselines})
         return {
             "table": "ueba_user_baseline",
@@ -322,12 +326,23 @@ class OperationsRunner:
         if not metrics:
             raise TaskNeedsReview("quality_manifest_missing", "no manifest rows matched the target date")
         blocking = _quality_blockers(metrics, thresholds)
-        output = {"table": "data_quality_metrics", "metric_count": len(metrics), "reconciliation": report, "blocking": blocking}
+        output = {
+            "table": "data_quality_metrics",
+            "metric_count": len(metrics),
+            "reconciliation": report,
+            "blocking": blocking,
+        }
         if blocking:
-            raise TaskNeedsReview("data_quality_gate_failed", "data quality contains unexplained or threshold-breaking differences", output)
+            raise TaskNeedsReview(
+                "data_quality_gate_failed",
+                "data quality contains unexplained or threshold-breaking differences",
+                output,
+            )
         return output
 
-    def _daily_report(self, tenant_id: str, target_date: date, run_id: str, watermark: dict[str, Any]) -> dict[str, Any]:
+    def _daily_report(
+        self, tenant_id: str, target_date: date, run_id: str, watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         existing, _ = self.storage.list_daily_reports(
             tenant_id=tenant_id,
             start_date=target_date,
@@ -367,7 +382,9 @@ class OperationsRunner:
             )
         return {"table": "acceptance_reports", "report_id": report.report_id, "metric_count": len(metrics)}
 
-    def _notifications(self, _tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]) -> dict[str, Any]:
+    def _notifications(
+        self, _tenant_id: str, target_date: date, _run_id: str, _watermark: dict[str, Any]
+    ) -> dict[str, Any]:
         now = self.clock()
         if target_date == now.date():
             end = now
@@ -375,9 +392,7 @@ class OperationsRunner:
         else:
             start = datetime.combine(target_date, day_time.min, tzinfo=timezone.utc)
             end = start + timedelta(days=1)
-        high, _ = self.storage.list_anomalies(
-            risk_level="high", start_time=start, end_time=end, limit=1000, offset=0
-        )
+        high, _ = self.storage.list_anomalies(risk_level="high", start_time=start, end_time=end, limit=1000, offset=0)
         critical, _ = self.storage.list_anomalies(
             risk_level="critical", start_time=start, end_time=end, limit=1000, offset=0
         )
@@ -456,6 +471,7 @@ class OperationsRunner:
         self.config.lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = self.config.lock_dir / f"{idempotency_key}.lock"
         if fcntl is None:
+            lock_path.touch(exist_ok=True)
             with _windows_lock(lock_path):
                 yield
             return

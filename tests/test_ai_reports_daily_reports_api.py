@@ -81,9 +81,7 @@ def test_list_ai_reports_queries_clickhouse_with_pagination():
     assert response.total == 5
     assert response.limit == 20
     assert response.offset == 10
-    assert storage.calls == [
-        {"method": "list_ai_judgements", "event_id": "anom-1", "limit": 20, "offset": 10}
-    ]
+    assert storage.calls == [{"method": "list_ai_judgements", "event_id": "anom-1", "limit": 20, "offset": 10}]
 
 
 def test_list_ai_reports_returns_standard_error_on_clickhouse_failure():
@@ -105,9 +103,7 @@ def test_list_daily_reports_queries_clickhouse_with_pagination():
     assert response.total == 3
     assert response.limit == 10
     assert response.offset == 0
-    assert storage.calls == [
-        {"method": "list_daily_reports", "tenant_id": "default", "limit": 10, "offset": 0}
-    ]
+    assert storage.calls == [{"method": "list_daily_reports", "tenant_id": "default", "limit": 10, "offset": 0}]
 
 
 def test_list_daily_reports_returns_standard_error_on_clickhouse_failure():

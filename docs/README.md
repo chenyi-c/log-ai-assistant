@@ -22,6 +22,7 @@
 | `11_operations_and_acceptance_spec.md` | 定义周期任务、质量门禁、场景评测和高危通知的运营闭环。       |
 | `12_reproducible_anomaly_scenarios.md` | 定义脱敏、可复现的异常检测场景与运行方式。                 |
 | `13_detection_acceptance_report.md` | 记录异常检测 A 模块的场景、稳定性与去重验收结果。          |
+| `12_engineering_quality_audit.md`     | 定义技术债基线、修复优先级和质量验证命令。                   |
 
 ## ADR
 

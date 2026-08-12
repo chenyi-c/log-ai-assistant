@@ -51,11 +51,12 @@ class NotificationStorage:
             if row["outbox_id"] not in latest or row["version"] > latest[row["outbox_id"]]["version"]:
                 latest[row["outbox_id"]] = row
         rows = [
-            row for row in latest.values()
+            row
+            for row in latest.values()
             if (status is None or row["status"] == status)
             and (due_before is None or row["next_attempt_at"] <= due_before)
         ]
-        return rows[offset:offset + limit], len(rows)
+        return rows[offset : offset + limit], len(rows)
 
     def append_notification_state(self, item):
         self.versions.append(item.model_dump(mode="python"))

@@ -529,7 +529,10 @@ def test_get_stats_overview_queries_log_and_anomaly_counts() -> None:
     assert "SELECT count() FROM security_logs WHERE tenant_id = {tenant_id:String}" in fake.queries[0]["sql"]
     assert "SELECT count() FROM anomaly_events WHERE tenant_id = {anom_tenant_id:String}" in fake.queries[0]["sql"]
     assert "ai_status = 'pending'" in fake.queries[0]["sql"]
-    assert "SELECT uniqExact(user_id) FROM ueba_user_baseline WHERE tenant_id = {tenant_id:String}" in fake.queries[0]["sql"]
+    assert (
+        "SELECT uniqExact(user_id) FROM ueba_user_baseline WHERE tenant_id = {tenant_id:String}"
+        in fake.queries[0]["sql"]
+    )
     assert fake.queries[0]["parameters"] == {
         "tenant_id": "default",
         "anom_tenant_id": "default",

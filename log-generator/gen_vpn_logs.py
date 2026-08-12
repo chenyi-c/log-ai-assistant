@@ -10,8 +10,6 @@ import csv
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Optional
-import ipaddress
-import math
 import uuid
 
 # ─────────────────────────────────────────────
@@ -19,47 +17,94 @@ import uuid
 # ─────────────────────────────────────────────
 
 USERS = [
-    {"username": "zhang.wei",    "dept": "研发部",   "role": "developer",  "usual_hours": (9, 18),  "usual_days": [0,1,2,3,4]},
-    {"username": "li.fang",      "dept": "财务部",   "role": "finance",    "usual_hours": (8, 17),  "usual_days": [0,1,2,3,4]},
-    {"username": "wang.jian",    "dept": "运维部",   "role": "ops",        "usual_hours": (0, 23),  "usual_days": [0,1,2,3,4,5,6]},
-    {"username": "chen.xiao",    "dept": "销售部",   "role": "sales",      "usual_hours": (8, 20),  "usual_days": [0,1,2,3,4,5]},
-    {"username": "liu.yang",     "dept": "研发部",   "role": "developer",  "usual_hours": (10, 22), "usual_days": [0,1,2,3,4]},
-    {"username": "zhao.min",     "dept": "HR部",     "role": "hr",         "usual_hours": (9, 18),  "usual_days": [0,1,2,3,4]},
-    {"username": "sun.lei",      "dept": "运维部",   "role": "ops",        "usual_hours": (0, 23),  "usual_days": [0,1,2,3,4,5,6]},
-    {"username": "zhou.ting",    "dept": "市场部",   "role": "marketing",  "usual_hours": (9, 19),  "usual_days": [0,1,2,3,4,5]},
-    {"username": "wu.hao",       "dept": "研发部",   "role": "developer",  "usual_hours": (9, 21),  "usual_days": [0,1,2,3,4]},
-    {"username": "admin",        "dept": "IT部",     "role": "admin",      "usual_hours": (8, 20),  "usual_days": [0,1,2,3,4,5,6]},
+    {
+        "username": "zhang.wei",
+        "dept": "研发部",
+        "role": "developer",
+        "usual_hours": (9, 18),
+        "usual_days": [0, 1, 2, 3, 4],
+    },
+    {"username": "li.fang", "dept": "财务部", "role": "finance", "usual_hours": (8, 17), "usual_days": [0, 1, 2, 3, 4]},
+    {
+        "username": "wang.jian",
+        "dept": "运维部",
+        "role": "ops",
+        "usual_hours": (0, 23),
+        "usual_days": [0, 1, 2, 3, 4, 5, 6],
+    },
+    {
+        "username": "chen.xiao",
+        "dept": "销售部",
+        "role": "sales",
+        "usual_hours": (8, 20),
+        "usual_days": [0, 1, 2, 3, 4, 5],
+    },
+    {
+        "username": "liu.yang",
+        "dept": "研发部",
+        "role": "developer",
+        "usual_hours": (10, 22),
+        "usual_days": [0, 1, 2, 3, 4],
+    },
+    {"username": "zhao.min", "dept": "HR部", "role": "hr", "usual_hours": (9, 18), "usual_days": [0, 1, 2, 3, 4]},
+    {
+        "username": "sun.lei",
+        "dept": "运维部",
+        "role": "ops",
+        "usual_hours": (0, 23),
+        "usual_days": [0, 1, 2, 3, 4, 5, 6],
+    },
+    {
+        "username": "zhou.ting",
+        "dept": "市场部",
+        "role": "marketing",
+        "usual_hours": (9, 19),
+        "usual_days": [0, 1, 2, 3, 4, 5],
+    },
+    {
+        "username": "wu.hao",
+        "dept": "研发部",
+        "role": "developer",
+        "usual_hours": (9, 21),
+        "usual_days": [0, 1, 2, 3, 4],
+    },
+    {"username": "admin", "dept": "IT部", "role": "admin", "usual_hours": (8, 20), "usual_days": [0, 1, 2, 3, 4, 5, 6]},
 ]
 
 # 常用 IP 段（模拟用户常用地点）
 USER_USUAL_IPS = {
-    "zhang.wei":  ["221.130.45.", "114.242.33."],
-    "li.fang":    ["60.191.22.",  "183.60.11."],
-    "wang.jian":  ["101.89.15.",  "117.136.0."],
-    "chen.xiao":  ["58.247.8.",   "180.168.55."],
-    "liu.yang":   ["221.130.45.", "36.110.22."],
-    "zhao.min":   ["60.191.22.",  "112.80.248."],
-    "sun.lei":    ["101.89.15.",  "117.136.0."],
-    "zhou.ting":  ["58.247.8.",   "180.168.55."],
-    "wu.hao":     ["221.130.45.", "114.242.33."],
-    "admin":      ["10.0.0.",     "192.168.1."],
+    "zhang.wei": ["221.130.45.", "114.242.33."],
+    "li.fang": ["60.191.22.", "183.60.11."],
+    "wang.jian": ["101.89.15.", "117.136.0."],
+    "chen.xiao": ["58.247.8.", "180.168.55."],
+    "liu.yang": ["221.130.45.", "36.110.22."],
+    "zhao.min": ["60.191.22.", "112.80.248."],
+    "sun.lei": ["101.89.15.", "117.136.0."],
+    "zhou.ting": ["58.247.8.", "180.168.55."],
+    "wu.hao": ["221.130.45.", "114.242.33."],
+    "admin": ["10.0.0.", "192.168.1."],
 }
 
 # 异常 IP 段（境外/陌生地址）
 ANOMALY_IPS = [
-    "185.220.101.", "45.33.32.", "198.199.67.",
-    "103.21.244.",  "91.108.4.", "77.88.55.",
+    "185.220.101.",
+    "45.33.32.",
+    "198.199.67.",
+    "103.21.244.",
+    "91.108.4.",
+    "77.88.55.",
 ]
 
 VPN_PROTOCOLS = ["SSL-VPN", "IPSec", "L2TP", "OpenVPN", "WireGuard"]
-VPN_GATEWAYS  = ["vpn-gw-bj01", "vpn-gw-sh02", "vpn-gw-gz03", "vpn-gw-cd04"]
-AUTH_METHODS  = ["password", "password+OTP", "certificate", "LDAP"]
-CLIENTS       = ["Cisco AnyConnect 4.10", "OpenVPN 2.6", "WireGuard 1.0", "FortiClient 7.2", "GlobalProtect 6.1"]
-FAIL_REASONS  = ["密码错误", "账号锁定", "证书过期", "OTP验证失败", "账号不存在", "IP黑名单拦截"]
+VPN_GATEWAYS = ["vpn-gw-bj01", "vpn-gw-sh02", "vpn-gw-gz03", "vpn-gw-cd04"]
+AUTH_METHODS = ["password", "password+OTP", "certificate", "LDAP"]
+CLIENTS = ["Cisco AnyConnect 4.10", "OpenVPN 2.6", "WireGuard 1.0", "FortiClient 7.2", "GlobalProtect 6.1"]
+FAIL_REASONS = ["密码错误", "账号锁定", "证书过期", "OTP验证失败", "账号不存在", "IP黑名单拦截"]
 
 # ─────────────────────────────────────────────
 # 数据结构
 # ─────────────────────────────────────────────
+
 
 @dataclass
 class VPNLogEntry:
@@ -79,7 +124,7 @@ class VPNLogEntry:
     vpn_gateway: str
     dst_internal_ip: str
     # What
-    event_type: str        # LOGIN_SUCCESS / LOGIN_FAIL / LOGOUT / SESSION_TIMEOUT
+    event_type: str  # LOGIN_SUCCESS / LOGIN_FAIL / LOGOUT / SESSION_TIMEOUT
     # How
     protocol: str
     auth_method: str
@@ -94,46 +139,52 @@ class VPNLogEntry:
     bytes_recv: Optional[int]
     is_off_hours: bool
     is_unusual_ip: bool
-    risk_score: int        # 0-100
-    risk_tags: str         # comma-separated anomaly tags
+    risk_score: int  # 0-100
+    risk_tags: str  # comma-separated anomaly tags
+
 
 # ─────────────────────────────────────────────
 # 辅助函数
 # ─────────────────────────────────────────────
 
+
 def random_ip(prefix: str) -> str:
     return prefix + str(random.randint(1, 254))
+
 
 def ip_to_geo(ip: str):
     """简单映射：根据 IP 前缀返回地理信息"""
     geo_map = {
         "221.130": ("中国", "北京"),
         "114.242": ("中国", "北京"),
-        "60.191":  ("中国", "杭州"),
-        "183.60":  ("中国", "广州"),
-        "101.89":  ("中国", "上海"),
+        "60.191": ("中国", "杭州"),
+        "183.60": ("中国", "广州"),
+        "101.89": ("中国", "上海"),
         "117.136": ("中国", "上海"),
-        "58.247":  ("中国", "上海"),
+        "58.247": ("中国", "上海"),
         "180.168": ("中国", "上海"),
-        "36.110":  ("中国", "北京"),
-        "112.80":  ("中国", "南京"),
-        "10.0":    ("内网", "总部"),
+        "36.110": ("中国", "北京"),
+        "112.80": ("中国", "南京"),
+        "10.0": ("内网", "总部"),
         "192.168": ("内网", "总部"),
         "185.220": ("荷兰", "阿姆斯特丹"),
-        "45.33":   ("美国", "弗里蒙特"),
+        "45.33": ("美国", "弗里蒙特"),
         "198.199": ("美国", "纽约"),
-        "103.21":  ("新加坡", "新加坡"),
-        "91.108":  ("德国", "法兰克福"),
-        "77.88":   ("俄罗斯", "莫斯科"),
+        "103.21": ("新加坡", "新加坡"),
+        "91.108": ("德国", "法兰克福"),
+        "77.88": ("俄罗斯", "莫斯科"),
     }
     prefix = ".".join(ip.split(".")[:2])
     return geo_map.get(prefix, ("未知", "未知"))
 
+
 def gen_session_id() -> str:
     return str(uuid.uuid4()).upper()[:16]
 
+
 def gen_event_id(prefix: str = "evt") -> str:
     return f"{prefix}-{uuid.uuid4()}"
+
 
 def is_off_hours(dt: datetime, user: dict) -> bool:
     h_start, h_end = user["usual_hours"]
@@ -141,9 +192,11 @@ def is_off_hours(dt: datetime, user: dict) -> bool:
         return True
     return not (h_start <= dt.hour < h_end)
 
+
 def is_unusual_ip(username: str, ip: str) -> bool:
     usual_prefixes = USER_USUAL_IPS.get(username, [])
     return not any(ip.startswith(p) for p in usual_prefixes)
+
 
 def calc_risk(entry_dict: dict) -> tuple[int, list[str]]:
     """基于行为基线计算风险分和标签"""
@@ -181,9 +234,11 @@ def calc_risk(entry_dict: dict) -> tuple[int, list[str]]:
 
     return min(score, 100), tags
 
+
 # ─────────────────────────────────────────────
 # 核心生成逻辑
 # ─────────────────────────────────────────────
+
 
 def gen_normal_login(user: dict, dt: datetime) -> VPNLogEntry:
     """生成正常登录事件（含 SUCCESS + LOGOUT 对）"""
@@ -195,10 +250,10 @@ def gen_normal_login(user: dict, dt: datetime) -> VPNLogEntry:
     client = random.choice(CLIENTS)
     gw = random.choice(VPN_GATEWAYS)
     sid = gen_session_id()
-    duration = random.randint(600, 28800)   # 10min ~ 8h
-    sent  = random.randint(1*1024*1024,  50*1024*1024)
-    recv  = random.randint(5*1024*1024, 200*1024*1024)
-    dst_ip = f"10.{random.randint(1,5)}.{random.randint(1,254)}.{random.randint(1,254)}"
+    duration = random.randint(600, 28800)  # 10min ~ 8h
+    sent = random.randint(1 * 1024 * 1024, 50 * 1024 * 1024)
+    recv = random.randint(5 * 1024 * 1024, 200 * 1024 * 1024)
+    dst_ip = f"10.{random.randint(1, 5)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
     off = is_off_hours(dt, user)
     unu = is_unusual_ip(user["username"], src_ip)
@@ -206,20 +261,34 @@ def gen_normal_login(user: dict, dt: datetime) -> VPNLogEntry:
     base = dict(
         event_id=gen_event_id("vpn"),
         timestamp=dt.strftime("%Y-%m-%d %H:%M:%S"),
-        username=user["username"], dept=user["dept"], role=user["role"],
-        src_ip=src_ip, src_country=country, src_city=city,
-        vpn_gateway=gw, dst_internal_ip=dst_ip,
-        event_type="LOGIN_SUCCESS", protocol=protocol,
-        auth_method=auth, client_software=client, session_id=sid,
-        result="SUCCESS", fail_reason=None,
-        session_duration_sec=duration, bytes_sent=sent, bytes_recv=recv,
-        is_off_hours=off, is_unusual_ip=unu,
-        risk_score=0, risk_tags="",
+        username=user["username"],
+        dept=user["dept"],
+        role=user["role"],
+        src_ip=src_ip,
+        src_country=country,
+        src_city=city,
+        vpn_gateway=gw,
+        dst_internal_ip=dst_ip,
+        event_type="LOGIN_SUCCESS",
+        protocol=protocol,
+        auth_method=auth,
+        client_software=client,
+        session_id=sid,
+        result="SUCCESS",
+        fail_reason=None,
+        session_duration_sec=duration,
+        bytes_sent=sent,
+        bytes_recv=recv,
+        is_off_hours=off,
+        is_unusual_ip=unu,
+        risk_score=0,
+        risk_tags="",
     )
     score, tags = calc_risk(base)
     base["risk_score"] = score
     base["risk_tags"] = ",".join(tags) if tags else "正常"
     return VPNLogEntry(**base)
+
 
 def gen_failed_login(user: dict, dt: datetime, anomaly_ip=False) -> VPNLogEntry:
     """生成登录失败事件"""
@@ -243,20 +312,34 @@ def gen_failed_login(user: dict, dt: datetime, anomaly_ip=False) -> VPNLogEntry:
     base = dict(
         event_id=gen_event_id("vpn"),
         timestamp=dt.strftime("%Y-%m-%d %H:%M:%S"),
-        username=user["username"], dept=user["dept"], role=user["role"],
-        src_ip=src_ip, src_country=country, src_city=city,
-        vpn_gateway=gw, dst_internal_ip="N/A",
-        event_type="LOGIN_FAIL", protocol=protocol,
-        auth_method=auth, client_software=client, session_id=sid,
-        result="FAIL", fail_reason=reason,
-        session_duration_sec=None, bytes_sent=None, bytes_recv=None,
-        is_off_hours=off, is_unusual_ip=unu,
-        risk_score=0, risk_tags="",
+        username=user["username"],
+        dept=user["dept"],
+        role=user["role"],
+        src_ip=src_ip,
+        src_country=country,
+        src_city=city,
+        vpn_gateway=gw,
+        dst_internal_ip="N/A",
+        event_type="LOGIN_FAIL",
+        protocol=protocol,
+        auth_method=auth,
+        client_software=client,
+        session_id=sid,
+        result="FAIL",
+        fail_reason=reason,
+        session_duration_sec=None,
+        bytes_sent=None,
+        bytes_recv=None,
+        is_off_hours=off,
+        is_unusual_ip=unu,
+        risk_score=0,
+        risk_tags="",
     )
     score, tags = calc_risk(base)
     base["risk_score"] = score
     base["risk_tags"] = ",".join(tags) if tags else "正常"
     return VPNLogEntry(**base)
+
 
 def gen_anomaly_large_download(user: dict, dt: datetime) -> VPNLogEntry:
     """异常：大量数据下载"""
@@ -266,9 +349,9 @@ def gen_anomaly_large_download(user: dict, dt: datetime) -> VPNLogEntry:
     gw = random.choice(VPN_GATEWAYS)
     sid = gen_session_id()
     duration = random.randint(3600, 14400)
-    sent  = random.randint(1*1024*1024, 10*1024*1024)
-    recv  = random.randint(600*1024*1024, 2*1024*1024*1024)  # 600MB~2GB
-    dst_ip = f"10.{random.randint(1,5)}.{random.randint(1,254)}.{random.randint(1,254)}"
+    sent = random.randint(1 * 1024 * 1024, 10 * 1024 * 1024)
+    recv = random.randint(600 * 1024 * 1024, 2 * 1024 * 1024 * 1024)  # 600MB~2GB
+    dst_ip = f"10.{random.randint(1, 5)}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
     off = is_off_hours(dt, user)
     unu = is_unusual_ip(user["username"], src_ip)
@@ -276,25 +359,39 @@ def gen_anomaly_large_download(user: dict, dt: datetime) -> VPNLogEntry:
     base = dict(
         event_id=gen_event_id("vpn"),
         timestamp=dt.strftime("%Y-%m-%d %H:%M:%S"),
-        username=user["username"], dept=user["dept"], role=user["role"],
-        src_ip=src_ip, src_country=country, src_city=city,
-        vpn_gateway=gw, dst_internal_ip=dst_ip,
-        event_type="LOGIN_SUCCESS", protocol=random.choice(VPN_PROTOCOLS[:3]),
+        username=user["username"],
+        dept=user["dept"],
+        role=user["role"],
+        src_ip=src_ip,
+        src_country=country,
+        src_city=city,
+        vpn_gateway=gw,
+        dst_internal_ip=dst_ip,
+        event_type="LOGIN_SUCCESS",
+        protocol=random.choice(VPN_PROTOCOLS[:3]),
         auth_method=random.choice(AUTH_METHODS[:2]),
-        client_software=random.choice(CLIENTS), session_id=sid,
-        result="SUCCESS", fail_reason=None,
-        session_duration_sec=duration, bytes_sent=sent, bytes_recv=recv,
-        is_off_hours=off, is_unusual_ip=unu,
-        risk_score=0, risk_tags="",
+        client_software=random.choice(CLIENTS),
+        session_id=sid,
+        result="SUCCESS",
+        fail_reason=None,
+        session_duration_sec=duration,
+        bytes_sent=sent,
+        bytes_recv=recv,
+        is_off_hours=off,
+        is_unusual_ip=unu,
+        risk_score=0,
+        risk_tags="",
     )
     score, tags = calc_risk(base)
     base["risk_score"] = score
     base["risk_tags"] = ",".join(tags) if tags else "正常"
     return VPNLogEntry(**base)
 
+
 # ─────────────────────────────────────────────
 # 主生成入口
 # ─────────────────────────────────────────────
+
 
 def generate_logs(
     start_date: datetime,
@@ -328,7 +425,7 @@ def generate_logs(
         for _ in range(fail_count):
             user = random.choice(USERS)
             hour = random.randint(0, 23)
-            dt = current.replace(hour=hour, minute=random.randint(0,59), second=random.randint(0,59))
+            dt = current.replace(hour=hour, minute=random.randint(0, 59), second=random.randint(0, 59))
             logs.append(gen_failed_login(user, dt, anomaly_ip=random.random() < 0.4))
 
         # 异常事件
@@ -336,8 +433,8 @@ def generate_logs(
         for _ in range(anomaly_count):
             user = random.choice(USERS)
             # 偏向非工作时间
-            hour = random.choice([0,1,2,3,22,23])
-            dt = current.replace(hour=hour, minute=random.randint(0,59), second=random.randint(0,59))
+            hour = random.choice([0, 1, 2, 3, 22, 23])
+            dt = current.replace(hour=hour, minute=random.randint(0, 59), second=random.randint(0, 59))
             choice = random.random()
             if choice < 0.5:
                 logs.append(gen_failed_login(user, dt, anomaly_ip=True))
@@ -350,9 +447,11 @@ def generate_logs(
     logs.sort(key=lambda x: x.timestamp)
     return logs
 
+
 # ─────────────────────────────────────────────
 # 输出函数
 # ─────────────────────────────────────────────
+
 
 def to_csv(logs: list[VPNLogEntry], path: str):
     if not logs:
@@ -364,11 +463,13 @@ def to_csv(logs: list[VPNLogEntry], path: str):
             writer.writerow(asdict(log))
     print(f"[CSV] 已写入 {len(logs)} 条 -> {path}")
 
+
 def to_jsonl(logs: list[VPNLogEntry], path: str):
     with open(path, "w", encoding="utf-8") as f:
         for log in logs:
             f.write(json.dumps(asdict(log), ensure_ascii=False) + "\n")
     print(f"[JSONL] 已写入 {len(logs)} 条 -> {path}")
+
 
 def to_syslog(logs: list[VPNLogEntry], path: str):
     """模拟 syslog 格式输出"""
@@ -380,7 +481,7 @@ def to_syslog(logs: list[VPNLogEntry], path: str):
                 f"event_id={d['event_id']} event={d['event_type']} user={d['username']} dept={d['dept']} "
                 f"src_ip={d['src_ip']} src_geo={d['src_country']}/{d['src_city']} "
                 f"proto={d['protocol']} auth={d['auth_method']} "
-                f"client=\"{d['client_software']}\" session={d['session_id']} "
+                f'client="{d["client_software"]}" session={d["session_id"]} '
                 f"result={d['result']}"
             )
             if d["fail_reason"]:
@@ -389,41 +490,44 @@ def to_syslog(logs: list[VPNLogEntry], path: str):
                 line += f" duration={d['session_duration_sec']}s"
             if d["bytes_recv"]:
                 line += f" bytes_recv={d['bytes_recv']} bytes_sent={d['bytes_sent']}"
-            line += f" risk_score={d['risk_score']} risk_tags=\"{d['risk_tags']}\""
+            line += f' risk_score={d["risk_score"]} risk_tags="{d["risk_tags"]}"'
             f.write(line + "\n")
     print(f"[Syslog] 已写入 {len(logs)} 条 -> {path}")
 
+
 def print_stats(logs: list[VPNLogEntry]):
     total = len(logs)
-    success = sum(1 for l in logs if l.event_type == "LOGIN_SUCCESS")
-    fail    = sum(1 for l in logs if l.event_type == "LOGIN_FAIL")
-    high_risk = sum(1 for l in logs if l.risk_score >= 50)
-    off_hours = sum(1 for l in logs if l.is_off_hours)
-    unusual_ip = sum(1 for l in logs if l.is_unusual_ip)
+    success = sum(1 for log in logs if log.event_type == "LOGIN_SUCCESS")
+    fail = sum(1 for log in logs if log.event_type == "LOGIN_FAIL")
+    high_risk = sum(1 for log in logs if log.risk_score >= 50)
+    off_hours = sum(1 for log in logs if log.is_off_hours)
+    unusual_ip = sum(1 for log in logs if log.is_unusual_ip)
 
     print("\n========== 日志统计 ==========")
     print(f"总条数       : {total}")
-    print(f"登录成功     : {success} ({success/total*100:.1f}%)")
-    print(f"登录失败     : {fail}    ({fail/total*100:.1f}%)")
-    print(f"高风险(≥50) : {high_risk} ({high_risk/total*100:.1f}%)")
-    print(f"非工作时间   : {off_hours} ({off_hours/total*100:.1f}%)")
-    print(f"异常IP       : {unusual_ip} ({unusual_ip/total*100:.1f}%)")
+    print(f"登录成功     : {success} ({success / total * 100:.1f}%)")
+    print(f"登录失败     : {fail}    ({fail / total * 100:.1f}%)")
+    print(f"高风险(≥50) : {high_risk} ({high_risk / total * 100:.1f}%)")
+    print(f"非工作时间   : {off_hours} ({off_hours / total * 100:.1f}%)")
+    print(f"异常IP       : {unusual_ip} ({unusual_ip / total * 100:.1f}%)")
     print("================================\n")
+
 
 # ─────────────────────────────────────────────
 # 入口
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import argparse, os
+    import argparse
+    import os
 
     parser = argparse.ArgumentParser(description="VPN 登录日志生成器")
-    parser.add_argument("--start",   default="2026-04-01", help="起始日期 YYYY-MM-DD")
-    parser.add_argument("--days",    type=int, default=7,  help="生成天数")
-    parser.add_argument("--count",   type=int, default=50, help="每天正常登录条数")
-    parser.add_argument("--outdir",  default=".",          help="输出目录")
-    parser.add_argument("--format",  default="all",        choices=["csv","jsonl","syslog","all"])
-    parser.add_argument("--seed",    type=int, default=42, help="随机种子（可复现）")
+    parser.add_argument("--start", default="2026-04-01", help="起始日期 YYYY-MM-DD")
+    parser.add_argument("--days", type=int, default=7, help="生成天数")
+    parser.add_argument("--count", type=int, default=50, help="每天正常登录条数")
+    parser.add_argument("--outdir", default=".", help="输出目录")
+    parser.add_argument("--format", default="all", choices=["csv", "jsonl", "syslog", "all"])
+    parser.add_argument("--seed", type=int, default=42, help="随机种子（可复现）")
     args = parser.parse_args()
 
     random.seed(args.seed)
