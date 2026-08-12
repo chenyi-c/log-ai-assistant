@@ -111,6 +111,8 @@ docker compose run --rm tester python scripts/run_anomaly_demo.py
 
 面试演示步骤见 [`docs/14_interview_demo.md`](docs/14_interview_demo.md)，最近一次合成场景的终端证据见 [`docs/evidence/anomaly-demo-v1.md`](docs/evidence/anomaly-demo-v1.md)。
 
+统一的项目定位、失败复盘和 live/replay/static 演示降级见 [`docs/interview/portfolio-interview-pack.md`](docs/interview/portfolio-interview-pack.md)。
+
 ### 60 秒面试讲解
 
 1. 固定的脱敏安全日志先进入我负责的 `RuleEngine`，再由 `AnomalyEventBuilder` 生成异常事件；我会展示登录失败突增或凭证填充的输入与命中原因码。
