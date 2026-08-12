@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -10,8 +9,14 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time as day_time, timedelta, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
+
+try:  # Linux containers use POSIX advisory locks.
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - exercised by Windows local runs.
+    fcntl = None  # type: ignore[assignment]
 
 from src.config import PROJECT_ROOT
 from src.operations.acceptance import evaluate_scenarios
@@ -39,6 +44,8 @@ WATERMARK_TASKS = {
     "data_quality_reconcile",
     "daily_report_generate",
 }
+_WINDOWS_LOCKS: dict[str, Lock] = {}
+_WINDOWS_LOCKS_GUARD = Lock()
 
 
 class TaskNeedsReview(RuntimeError):
@@ -140,7 +147,7 @@ class OperationsRunner:
 
     def run_scheduler_forever(self) -> None:
         while True:
-            local_now = self.clock().astimezone(ZoneInfo(self.config.timezone_name))
+            local_now = self.clock().astimezone(_timezone(self.config.timezone_name))
             target = local_now.date() - timedelta(days=1)
             for task_name in (
                 "daily_feature_aggregate",
@@ -154,7 +161,7 @@ class OperationsRunner:
             self.sleep(self.config.scheduler_interval_seconds)
 
     def default_target_date(self, task_name: str) -> date:
-        local_now = self.clock().astimezone(ZoneInfo(self.config.timezone_name))
+        local_now = self.clock().astimezone(_timezone(self.config.timezone_name))
         if task_name in WATERMARK_TASKS:
             return local_now.date() - timedelta(days=1)
         return local_now.date()
@@ -385,7 +392,7 @@ class OperationsRunner:
 
     def _watermark(self, tenant_id: str, target_date: date) -> dict[str, Any]:
         values = dict(self.storage.data_watermark(tenant_id=tenant_id, target_date=target_date))
-        local_zone = ZoneInfo(self.config.timezone_name)
+        local_zone = _timezone(self.config.timezone_name)
         target_end_local = datetime.combine(target_date + timedelta(days=1), day_time.min, tzinfo=local_zone)
         target_end_utc = target_end_local.astimezone(timezone.utc)
         ready_after = target_end_utc + timedelta(minutes=self.config.watermark_grace_minutes)
@@ -448,12 +455,39 @@ class OperationsRunner:
     def _task_lock(self, idempotency_key: str):
         self.config.lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = self.config.lock_dir / f"{idempotency_key}.lock"
-        with lock_path.open("a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        if fcntl is None:
+            with _windows_lock(lock_path):
+                yield
+            return
+        with lock_path.open("a+b") as handle:
+            _lock_file(handle)
             try:
                 yield
             finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _unlock_file(handle)
+
+
+def _lock_file(handle: Any) -> None:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+
+def _unlock_file(handle: Any) -> None:
+    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def _windows_lock(lock_path: Path):
+    """Keep local Windows demos single-process without changing Docker locking."""
+    key = str(lock_path.resolve()).casefold()
+    with _WINDOWS_LOCKS_GUARD:
+        lock = _WINDOWS_LOCKS.setdefault(key, Lock())
+    with lock:
+        yield
+
+
+def _timezone(name: str):
+    """Avoid an unnecessary tzdata dependency for the universal UTC setting."""
+    return timezone.utc if name.upper() == "UTC" else ZoneInfo(name)
 
 
 def _quality_blockers(metrics: list[Any], thresholds: dict[str, Any]) -> list[dict[str, Any]]:
